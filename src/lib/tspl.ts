@@ -1,5 +1,5 @@
 import type { LabelElement, LabelSettings } from '../types';
-import { DOT_FONTS, displayWidth, cellCount } from './fonts';
+import { DOT_FONTS, displayWidth, textWidthDots } from './fonts';
 import { mm2d, fmt } from './units';
 
 /** 估算元素包围盒，单位「点(dot)」，与 TSPL 指令数值 1:1；dpi 仅用于非点阵字体的 mm→点估算 */
@@ -9,7 +9,8 @@ export function getBox(el: LabelElement, dpi: number = 203): { w: number; h: num
       const f = DOT_FONTS[el.font];
       if (f) {
         return {
-          w: cellCount(el.content, el.font) * f[0] * (el.xMult || 1),
+          // 内置 0–5：中英分档宽高累加；.BF2：半角/全角单元累加
+          w: textWidthDots(el.content, el.font) * (el.xMult || 1),
           h: f[1] * (el.yMult || 1),
         };
       }
@@ -52,6 +53,7 @@ export function generateTSPL(label: LabelSettings, elements: LabelElement[]): st
   L.push(`SPEED ${label.speed}`);
   L.push(`DENSITY ${label.density}`);
   L.push(`DIRECTION ${label.direction}`);
+  L.push(`REFERENCE ${label.printOffsetX},${label.printOffsetY}`);
   L.push(`CLS`);
 
   for (const el of elements) {

@@ -155,6 +155,12 @@ export type LabelElement =
   | ImageElement
   | Barcode2dElement;
 
+export interface PrinterOffset {
+  /** 打印机可打印区域相对纸张左上角的偏移，单位 点(dot)，仅用于预览 */
+  x: number;
+  y: number;
+}
+
 export interface LabelSettings {
   /** 标签宽度，单位 mm（SIZE 指令用 mm） */
   width: number;
@@ -162,6 +168,10 @@ export interface LabelSettings {
   height: number;
   /** 标签间隙，单位 mm */
   gap: number;
+  /** 打印内容整体 X 偏移，单位 点(dot)，不改变元素在画布中的坐标 */
+  printOffsetX: number;
+  /** 打印内容整体 Y 偏移，单位 点(dot) */
+  printOffsetY: number;
   /** 打印速度 (IPS) */
   speed: number;
   /** 打印浓度 */

@@ -16,7 +16,7 @@ export interface ParseResult {
 }
 
 const SKIPPED_CMDS = [
-  'CLS', 'REFERENCE', 'REFLECT', 'CODEPAGE', 'SHIFT', 'OFFSET', 'SET',
+  'CLS', 'REFLECT', 'CODEPAGE', 'SHIFT', 'OFFSET', 'SET',
   'DOWNLOAD', 'EOP',
 ];
 
@@ -25,7 +25,8 @@ export function parseTSPL(src: string, dpi: number = 203): ParseResult {
   const errors: string[] = [];
   const elements: LabelElement[] = [];
   const label: LabelSettings = {
-    width: 60, height: 40, gap: 3, speed: 4, density: 10, direction: 0, copies: 1, dpi,
+    width: 60, height: 40, gap: 3, printOffsetX: 0, printOffsetY: 0,
+    speed: 4, density: 10, direction: 0, copies: 1, dpi,
   };
 
   const lines = String(src)
@@ -59,6 +60,10 @@ export function parseTSPL(src: string, dpi: number = 203): ParseResult {
         break;
       case 'DIRECTION':
         label.direction = num(args[0]);
+        break;
+      case 'REFERENCE':
+        label.printOffsetX = num(args[0]);
+        label.printOffsetY = num(args[1]);
         break;
       case 'PRINT':
         label.copies = num(args[0]);

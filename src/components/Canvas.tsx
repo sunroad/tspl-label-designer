@@ -1,5 +1,5 @@
 import React from 'react';
-import type { LabelElement, LabelSettings } from '../types';
+import type { LabelElement, LabelSettings, PrinterOffset } from '../types';
 import { mm2d, fmt } from '../lib/units';
 import ElementRenderer from './ElementRenderer';
 import Ruler from './Ruler';
@@ -13,6 +13,7 @@ interface MoveUpdate {
 
 interface Props {
   label: LabelSettings;
+  printerOffset: PrinterOffset;
   elements: LabelElement[];
   selectedIds: string[];
   zoom: number;
@@ -22,7 +23,7 @@ interface Props {
 }
 
 export default function Canvas({
-  label, elements, selectedIds, zoom, showRuler, onSelect, onMove,
+  label, printerOffset, elements, selectedIds, zoom, showRuler, onSelect, onMove,
 }: Props) {
   const dragRef = React.useRef<{ ids: string[]; origins: Map<string, { x: number; y: number }>; px: number; py: number } | null>(null);
 
@@ -70,6 +71,8 @@ export default function Canvas({
 
   const W = label.width * zoom;
   const H = label.height * zoom;
+  const offsetX = (label.printOffsetX + printerOffset.x) * zoom * 25.4 / label.dpi;
+  const offsetY = (label.printOffsetY + printerOffset.y) * zoom * 25.4 / label.dpi;
   const R = 20; // 上下水平标尺厚度（px）：容纳刻度线 8 + 数字高 9
   const RV = 24; // 左右垂直标尺厚度（px）：容纳长刻度线 8 + 空隙 3 + 两位数宽约 11
 
@@ -88,10 +91,12 @@ export default function Canvas({
               <svg width={W} height={H}
                 style={{ display: 'block', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,.15)' }}
                 onPointerDown={() => onSelect([])}>
-                {elements.map((el) => (
-                  <ElementRenderer key={el.id} el={el} zoom={zoom} dpi={label.dpi} selected={selectedIds.includes(el.id)}
-                    onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} />
-                ))}
+                <g transform={`translate(${offsetX} ${offsetY})`}>
+                  {elements.map((el) => (
+                    <ElementRenderer key={el.id} el={el} zoom={zoom} dpi={label.dpi} selected={selectedIds.includes(el.id)}
+                      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} />
+                  ))}
+                </g>
               </svg>
               <Ruler orientation="vertical" lengthMm={label.height} zoom={zoom} thickness={RV} flip />
               <div style={{ background: '#eef1f5' }} />
@@ -102,10 +107,12 @@ export default function Canvas({
             <svg width={W} height={H}
               style={{ display: 'block', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,.15)' }}
               onPointerDown={() => onSelect([])}>
-              {elements.map((el) => (
-                <ElementRenderer key={el.id} el={el} zoom={zoom} dpi={label.dpi} selected={selectedIds.includes(el.id)}
-                  onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} />
-              ))}
+              <g transform={`translate(${offsetX} ${offsetY})`}>
+                {elements.map((el) => (
+                  <ElementRenderer key={el.id} el={el} zoom={zoom} dpi={label.dpi} selected={selectedIds.includes(el.id)}
+                    onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} />
+                ))}
+              </g>
             </svg>
           )}
         </div>

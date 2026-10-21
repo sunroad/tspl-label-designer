@@ -12,6 +12,7 @@ export const TSPL_COMMANDS: TsplCommand[] = [
   { label: 'SPEED', detail: '打印速度（英寸/秒）' },
   { label: 'DENSITY', detail: '打印浓度 0-15' },
   { label: 'DIRECTION', detail: '打印方向 0 / 1' },
+  { label: 'REFERENCE', detail: '打印内容原点偏移：X 点, Y 点' },
   { label: 'CLS', detail: '清除打印缓冲区' },
   { label: 'TEXT', detail: '文本：x, y, 字体, 旋转, 宽倍, 高倍, 内容' },
   { label: 'BARCODE', detail: '条形码：x, y, 码制, 高度, 可读, 旋转, 窄, 宽, 内容' },

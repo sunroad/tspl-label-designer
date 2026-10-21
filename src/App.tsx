@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { LabelElement, LabelSettings } from './types';
+import { useEffect, useState } from 'react';
+import type { LabelElement, LabelSettings, PrinterOffset } from './types';
 import { DEFAULT_ELEMENTS, DEFAULT_LABEL } from './defaults';
 import { generateTSPL, getBox } from './lib/tspl';
 import { parseTSPL } from './lib/parse';
@@ -19,6 +19,19 @@ const nid = () => 'e' + uid++;
 
 // 屏幕 PPI 持久化 key；屏幕是稳定硬件属性，属「设置」类，刷新后保留 1:1 校准
 const PPI_KEY = 'tspl:screenPpi';
+const PRINTER_OFFSET_KEY = 'tspl:printerOffset';
+
+function readPrinterOffset(): PrinterOffset {
+  try {
+    const value = JSON.parse(localStorage.getItem(PRINTER_OFFSET_KEY) ?? '{}');
+    return {
+      x: Number.isFinite(value?.x) ? value.x : 0,
+      y: Number.isFinite(value?.y) ? value.y : 0,
+    };
+  } catch {
+    return { x: 0, y: 0 };
+  }
+}
 
 /** 读取已存屏幕 PPI，未校准/异常时返回 0 */
 function readScreenPpi(): number {
@@ -49,6 +62,7 @@ function Rail({ side, onClick, children }: { side: 'left' | 'right'; onClick: ()
 
 export default function App() {
   const [label, setLabel] = useState<LabelSettings>(DEFAULT_LABEL);
+  const [printerOffset, setPrinterOffset] = useState<PrinterOffset>(readPrinterOffset);
   const [elements, setElements] = useState<LabelElement[]>(DEFAULT_ELEMENTS);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   // 已校准的屏幕 PPI（0=未校准）；zoom 初始取 1:1 倍率，未校准则用默认 4px/mm
@@ -62,6 +76,10 @@ export default function App() {
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [showRuler, setShowRuler] = useState(true);
+
+  useEffect(() => {
+    try { localStorage.setItem(PRINTER_OFFSET_KEY, JSON.stringify(printerOffset)); } catch { /* 无法使用存储时仍可在本次会话调整 */ }
+  }, [printerOffset]);
 
   // 应用屏幕校准：反推的 PPI → 1:1 倍率，并持久化
   const applyCalibration = (ppi: number) => {
@@ -223,6 +241,7 @@ export default function App() {
         <Rail side="left" onClick={() => setLeftOpen((o) => !o)}>{leftOpen ? '◀' : '▶'}</Rail>
         <Canvas
           label={label}
+          printerOffset={printerOffset}
           elements={elements}
           selectedIds={selectedIds}
           zoom={zoom}
@@ -241,9 +260,11 @@ export default function App() {
           <div style={{ width: 280, background: '#fff', borderLeft: '1px solid #e4e7ec', padding: 14, overflowY: 'auto' }}>
             <LabelInfoPanel
               label={label}
+              printerOffset={printerOffset}
               open={labelInfoOpen}
               onToggle={() => setLabelInfoOpen((o) => !o)}
               onChange={(patch) => setLabel((l) => ({ ...l, ...patch }))}
+              onPrinterOffsetChange={(patch) => setPrinterOffset((offset) => ({ ...offset, ...patch }))}
             />
             <ElementPropsPanel
               el={selEl}

@@ -5,7 +5,8 @@ import { mm2d } from './lib/units';
 const DPI = 203;
 
 export const DEFAULT_LABEL: LabelSettings = {
-  width: 60, height: 40, gap: 3, speed: 4, density: 10, direction: 0, copies: 1, dpi: DPI,
+  width: 60, height: 40, gap: 3, printOffsetX: 0, printOffsetY: 0,
+  speed: 4, density: 10, direction: 0, copies: 1, dpi: DPI,
 };
 
 // 元素坐标与尺寸一律以「点(dot)」存储，与 TSPL 指令数值 1:1。

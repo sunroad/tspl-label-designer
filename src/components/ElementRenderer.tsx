@@ -1,7 +1,7 @@
 import React from 'react';
 import type { LabelElement } from '../types';
 import { getBox } from '../lib/tspl';
-import { DOT_FONTS, isCJK, isCJKDotFont } from '../lib/fonts';
+import { DOT_FONTS, charDotSize, isCJK, isCJKDotFont } from '../lib/fonts';
 import { dotMatrix } from '../lib/asciiDot';
 import { d2mm as baseD2mm } from '../lib/units';
 import { barcodeBars, qrBlackCells, matrixBlackCells } from './preview';
@@ -29,48 +29,53 @@ export default function ElementRenderer({
   if (el.type === 'text') {
     const f = DOT_FONTS[el.font];
     if (f) {
-      // 点阵字体：每个单元固定宽 f[0] 点、高 f[1] 点。
-      // 中文点阵字体（.BF2）全角占 2 单元、半角占 1 单元；英数字体 1–5 一律 1 单元/字符。
-      const cellW = d2mm(f[0]) * zoom;
-      const cellH = d2mm(f[1]) * zoom;
+      // 点阵字体：按字符取真实点阵宽高。
+      // 内置 0–5：纯英数为半尺寸方格；混排时英数半宽、与中文等高。
+      // .BF2 保持原有半角/全角点阵尺寸。
+      const chars = Array.from(el.content);
+      const mixed = !isCJKDotFont(el.font) && chars.some(isCJK) && chars.some((ch) => !isCJK(ch));
+      const lineHDots = f[1];
       const dot = d2mm(1) * zoom; // 单点(dot)对应的屏幕像素边长
-      const cjk = isCJKDotFont(el.font);
-      const builtin = !cjk; // 内置 2–5 英数字体（非中文点阵）
       let x = 0;
-      const cells = Array.from(el.content).map((ch, i) => {
-        const units = cjk && isCJK(ch) ? 2 : 1;
+      const cells = chars.map((ch, i) => {
+        const size = charDotSize(el.font, ch) ?? f;
+        const cw = d2mm(size[0]) * zoom;
+        const glyphH = mixed && !isCJK(ch) ? lineHDots : size[1];
+        const chH = d2mm(glyphH) * zoom;
+        const yOffDots = Math.max(0, Math.floor((lineHDots - glyphH) / 2));
+        const yOff = yOffDots * dot;
         let node: React.ReactNode;
-        if (builtin) {
-          // 内置 2–5：可打印 ASCII 用程序点阵化逐点画块；非 ASCII 回退到压宽方案
-          const m = dotMatrix(el.font, ch);
-          if (m) {
-            const rects: React.ReactNode[] = [];
-            m.forEach((row, r) =>
-              row.forEach((on, c) => {
-                if (on) rects.push(<rect key={`${i}-${r}-${c}`} x={x + c * dot} y={r * dot} width={dot} height={dot} fill="#111" />);
-              }),
-            );
-            node = <g key={i}>{rects}</g>;
-          } else {
-            node = (
-              <text key={i} x={x} y={0} dominantBaseline="hanging"
-                textLength={units * cellW} lengthAdjust="spacingAndGlyphs"
-                style={{ fontSize: cellH, fill: '#111', fontFamily: 'monospace' }}>
-                {ch}
-              </text>
-            );
-          }
+        const m = dotMatrix(el.font, ch, mixed ? lineHDots : undefined);
+        if (m) {
+          const rects: React.ReactNode[] = [];
+          m.forEach((row, r) =>
+            row.forEach((on, c) => {
+              if (on) {
+                rects.push(
+                  <rect
+                    key={`${i}-${r}-${c}`}
+                    x={x + c * dot}
+                    y={yOff + r * dot}
+                    width={dot}
+                    height={dot}
+                    fill="#111"
+                  />,
+                );
+              }
+            }),
+          );
+          node = <g key={i}>{rects}</g>;
         } else {
-          // 中文点阵字体（内置 0/1、.BF2）：全角/半角按单元宽压到真实点阵宽度（避免中文被方形放大）
+          // 回退：按该字符真实点阵宽高压宽，并垂直居中到行高
           node = (
-            <text key={i} x={x} y={0} dominantBaseline="hanging"
-              textLength={units * cellW} lengthAdjust="spacingAndGlyphs"
-              style={{ fontSize: cellH, fill: '#111', fontFamily: 'monospace' }}>
+            <text key={i} x={x} y={yOff} dominantBaseline="hanging"
+              textLength={cw} lengthAdjust="spacingAndGlyphs"
+              style={{ fontSize: chH, fill: '#111', fontFamily: 'monospace' }}>
               {ch}
             </text>
           );
         }
-        x += units * cellW;
+        x += cw;
         return node;
       });
       // 横向/纵向放大倍数分别作用于宽、高
