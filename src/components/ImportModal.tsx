@@ -20,7 +20,7 @@ export default function ImportModal({ initialText, onImport, onClose }: Props) {
         <div style={{ padding: 16, overflow: 'auto', flex: 1 }}>
           <textarea value={text} onChange={(e) => setText(e.target.value)} spellCheck={false}
             style={{ width: '100%', height: 260, padding: 12, borderRadius: 8, border: '1px solid #d0d5dd', fontSize: 13, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', lineHeight: 1.6, boxSizing: 'border-box', resize: 'vertical' }} />
-          <div style={{ fontSize: 11, color: '#98a2b3', marginTop: 8 }}>支持导入：SIZE / GAP / SPEED / DENSITY / DIRECTION / PRINT / TEXT / BARCODE / QRCODE / BAR / BOX。坐标按 203 DPI 点换算回 mm。其余指令会提示跳过。</div>
+          <div style={{ fontSize: 11, color: '#98a2b3', marginTop: 8 }}>支持导入：SIZE / GAP / SPEED / DENSITY / DIRECTION / PRINT / TEXT / BARCODE / QRCODE / BAR / BOX / ELLIPSE / CIRCLE / ARC / BLOCK / REVERSE / DIAGONAL / PUTBMP / PUTPCX / PDF417 / DMATRIX / AZTEC / MAXICODE。位置与尺寸均按「点(dot)」原样存储，与 TSPL 指令数值 1:1；仅 SIZE/GAP 使用 mm。其余指令会提示跳过。</div>
         </div>
         <div style={{ padding: '12px 18px', borderTop: '1px solid #e4e7ec', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button style={btnStyle} onClick={onClose}>取消</button>

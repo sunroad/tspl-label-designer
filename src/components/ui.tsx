@@ -5,6 +5,13 @@ export const btnStyle: CSSProperties = {
   background: '#fff', cursor: 'pointer', fontSize: 13, color: '#1d2939',
 };
 
+/** 方形图标按钮：工具栏（缩放/校准/标尺/对齐）统一使用 */
+export const iconBtnStyle: CSSProperties = {
+  width: 26, height: 26, padding: 0, borderRadius: 5,
+  border: '1px solid #d0d5dd', background: '#fff', cursor: 'pointer',
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#1d2939',
+};
+
 export const btnPrimaryStyle: CSSProperties = {
   ...btnStyle, background: '#1d4ed8', borderColor: '#1d4ed8', color: '#fff',
 };

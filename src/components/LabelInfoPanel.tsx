@@ -23,6 +23,9 @@ export default function LabelInfoPanel({ label, open, onToggle, onChange }: Prop
             <Sel value={label.direction} onChange={(v) => onChange({ direction: parseInt(v) })} options={[0, 1]} />
           </Field>
           <Field name="打印份数"><Num value={label.copies} onChange={(v) => onChange({ copies: v })} min={1} /></Field>
+          <Field name="打印头 DPI">
+            <Sel value={label.dpi} onChange={(v) => onChange({ dpi: parseInt(v) })} options={[203, 300, 600]} />
+          </Field>
         </div>
       )}
     </div>

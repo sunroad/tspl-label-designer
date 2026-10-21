@@ -2,6 +2,7 @@ import React from 'react';
 import type { LabelElement, LabelSettings } from '../types';
 import { mm2d, fmt } from '../lib/units';
 import ElementRenderer from './ElementRenderer';
+import Ruler from './Ruler';
 
 /** 一次拖拽移动后，需要更新的元素绝对坐标 */
 interface MoveUpdate {
@@ -15,12 +16,13 @@ interface Props {
   elements: LabelElement[];
   selectedIds: string[];
   zoom: number;
+  showRuler: boolean;
   onSelect: (ids: string[]) => void;
   onMove: (updates: MoveUpdate[]) => void;
 }
 
 export default function Canvas({
-  label, elements, selectedIds, zoom, onSelect, onMove,
+  label, elements, selectedIds, zoom, showRuler, onSelect, onMove,
 }: Props) {
   const dragRef = React.useRef<{ ids: string[]; origins: Map<string, { x: number; y: number }>; px: number; py: number } | null>(null);
 
@@ -47,8 +49,11 @@ export default function Canvas({
   const onPointerMove = (e: React.PointerEvent) => {
     const d = dragRef.current;
     if (!d || d.ids.length === 0) return;
-    const dx = (e.clientX - d.px) / zoom;
-    const dy = (e.clientY - d.py) / zoom;
+    // 像素位移 → mm → 点(dot)，与元素点存储保持一致
+    const dxmm = (e.clientX - d.px) / zoom;
+    const dymm = (e.clientY - d.py) / zoom;
+    const dx = mm2d(dxmm, label.dpi);
+    const dy = mm2d(dymm, label.dpi);
     const updates: MoveUpdate[] = d.ids.map((id) => {
       const o = d.origins.get(id)!;
       return { id, x: fmt(o.x + dx), y: fmt(o.y + dy) };
@@ -65,22 +70,47 @@ export default function Canvas({
 
   const W = label.width * zoom;
   const H = label.height * zoom;
+  const R = 20; // 上下水平标尺厚度（px）：容纳刻度线 8 + 数字高 9
+  const RV = 24; // 左右垂直标尺厚度（px）：容纳长刻度线 8 + 空隙 3 + 两位数宽约 11
 
   return (
     <div style={{ flex: 1, overflow: 'auto', padding: 20, display: 'flex' }}>
       <div style={{ margin: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        {/* 灰色衬底包住整个 3×3 栅格：四角占位，四周标尺，中央画布；标尺与画布边缘精确对齐 */}
         <div style={{ background: '#dfe3ea', padding: 24, borderRadius: 8, boxShadow: 'inset 0 1px 4px rgba(0,0,0,.08)' }}>
-          <svg width={W} height={H}
-            style={{ display: 'block', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,.15)' }}
-            onPointerDown={() => onSelect([])}>
-            {elements.map((el) => (
-              <ElementRenderer key={el.id} el={el} zoom={zoom} selected={selectedIds.includes(el.id)}
-                onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} />
-            ))}
-          </svg>
+          {showRuler ? (
+            <div style={{ display: 'grid', gridTemplateColumns: `${RV}px auto ${RV}px`, gridTemplateRows: `${R}px auto ${R}px` }}>
+              {/* 四角空白占位，与标尺同色 */}
+              <div style={{ background: '#eef1f5' }} />
+              <Ruler orientation="horizontal" lengthMm={label.width} zoom={zoom} thickness={R} />
+              <div style={{ background: '#eef1f5' }} />
+              <Ruler orientation="vertical" lengthMm={label.height} zoom={zoom} thickness={RV} />
+              <svg width={W} height={H}
+                style={{ display: 'block', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,.15)' }}
+                onPointerDown={() => onSelect([])}>
+                {elements.map((el) => (
+                  <ElementRenderer key={el.id} el={el} zoom={zoom} dpi={label.dpi} selected={selectedIds.includes(el.id)}
+                    onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} />
+                ))}
+              </svg>
+              <Ruler orientation="vertical" lengthMm={label.height} zoom={zoom} thickness={RV} flip />
+              <div style={{ background: '#eef1f5' }} />
+              <Ruler orientation="horizontal" lengthMm={label.width} zoom={zoom} thickness={R} flip />
+              <div style={{ background: '#eef1f5' }} />
+            </div>
+          ) : (
+            <svg width={W} height={H}
+              style={{ display: 'block', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,.15)' }}
+              onPointerDown={() => onSelect([])}>
+              {elements.map((el) => (
+                <ElementRenderer key={el.id} el={el} zoom={zoom} dpi={label.dpi} selected={selectedIds.includes(el.id)}
+                  onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} />
+              ))}
+            </svg>
+          )}
         </div>
         <div style={{ fontSize: 11, color: '#98a2b3', marginTop: 8 }}>
-          {fmt(label.width)} × {fmt(label.height)} mm · 203 DPI = {mm2d(label.width)} × {mm2d(label.height)} 点
+          {fmt(label.width)} × {fmt(label.height)} mm · {label.dpi} DPI = {mm2d(label.width, label.dpi)} × {mm2d(label.height, label.dpi)} 点
         </div>
       </div>
     </div>

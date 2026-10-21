@@ -6,9 +6,9 @@ export type ElementType =
 export interface BaseElement {
   id: string;
   type: ElementType;
-  /** 左上角 X，单位 mm */
+  /** 左上角 X，单位 点(dot)，与 TSPL 指令数值 1:1 */
   x: number;
-  /** 左上角 Y，单位 mm */
+  /** 左上角 Y，单位 点(dot) */
   y: number;
   /** 旋转角度：0 / 90 / 180 / 270 */
   rotation?: number;
@@ -25,7 +25,7 @@ export interface TextElement extends BaseElement {
 export interface BarcodeElement extends BaseElement {
   type: 'barcode';
   codeType: string;
-  /** 条码高度，单位 mm */
+  /** 条码高度，单位 点(dot) */
   height: number;
   /** 可读字符：0 隐藏 / 1 显示 */
   humanReadable: number;
@@ -46,36 +46,36 @@ export interface QrElement extends BaseElement {
 
 export interface LineElement extends BaseElement {
   type: 'line';
-  /** 长度，单位 mm */
+  /** 长度，单位 点(dot) */
   width: number;
-  /** 粗细，单位 mm */
+  /** 粗细，单位 点(dot) */
   height: number;
 }
 
 export interface BoxElement extends BaseElement {
   type: 'box';
-  /** 宽，单位 mm */
+  /** 宽，单位 点(dot) */
   width: number;
-  /** 高，单位 mm */
+  /** 高，单位 点(dot) */
   height: number;
-  /** 线宽，单位 mm */
+  /** 线宽，单位 点(dot) */
   thickness: number;
 }
 
-/** 椭圆（ELLIPSE），width/height 为外接矩形的宽高 */
+/** 椭圆（ELLIPSE），width/height 为外接矩形的宽高，单位 点(dot) */
 export interface EllipseElement extends BaseElement {
   type: 'ellipse';
   width: number;
   height: number;
-  /** 线宽，单位 mm */
+  /** 线宽，单位 点(dot) */
   thickness: number;
 }
 
-/** 圆（CIRCLE），diameter 为直径 */
+/** 圆（CIRCLE），diameter 为直径，单位 点(dot) */
 export interface CircleElement extends BaseElement {
   type: 'circle';
   diameter: number;
-  /** 线宽，单位 mm */
+  /** 线宽，单位 点(dot) */
   thickness: number;
 }
 
@@ -96,15 +96,15 @@ export interface ReverseElement extends BaseElement {
 /** 反斜线（DIAGONAL），从左下到右上的斜线 */
 export interface DiagonalElement extends BaseElement {
   type: 'diagonal';
-  /** 横向长度，单位 mm */
+  /** 横向长度，单位 点(dot) */
   width: number;
-  /** 纵向高度，单位 mm */
+  /** 纵向高度，单位 点(dot) */
   height: number;
-  /** 线宽，单位 mm */
+  /** 线宽，单位 点(dot) */
   thickness: number;
 }
 
-/** 圆弧（ARC），width/height 为所在椭圆外接矩形的宽高 */
+/** 圆弧（ARC），width/height 为所在椭圆外接矩形的宽高，单位 点(dot) */
 export interface ArcElement extends BaseElement {
   type: 'arc';
   width: number;
@@ -113,7 +113,7 @@ export interface ArcElement extends BaseElement {
   startAngle: number;
   /** 扫过角度 0-360 */
   sweepAngle: number;
-  /** 线宽，单位 mm */
+  /** 线宽，单位 点(dot) */
   thickness: number;
 }
 
@@ -122,9 +122,9 @@ export interface ImageElement extends BaseElement {
   type: 'image';
   /** 打印机内存中的图片文件名 */
   fileName: string;
-  /** 显示宽，单位 mm */
+  /** 显示宽，单位 点(dot)；PCX 无宽高，此值为预览占位 */
   width: number;
-  /** 显示高，单位 mm */
+  /** 显示高，单位 点(dot) */
   height: number;
   format: 'BMP' | 'PCX';
 }
@@ -133,9 +133,9 @@ export interface ImageElement extends BaseElement {
 export interface Barcode2dElement extends BaseElement {
   type: 'barcode2d';
   codeType: 'PDF417' | 'DMATRIX' | 'AZTEC' | 'MAXICODE';
-  /** 显示宽，单位 mm */
+  /** 显示宽，单位 点(dot)；仅 PDF417/DMATRIX 携带，其余为预览占位 */
   width: number;
-  /** 显示高，单位 mm */
+  /** 显示高，单位 点(dot) */
   height: number;
   content: string;
 }
@@ -156,7 +156,7 @@ export type LabelElement =
   | Barcode2dElement;
 
 export interface LabelSettings {
-  /** 标签宽度，单位 mm */
+  /** 标签宽度，单位 mm（SIZE 指令用 mm） */
   width: number;
   /** 标签高度，单位 mm */
   height: number;
@@ -170,4 +170,6 @@ export interface LabelSettings {
   direction: number;
   /** 打印份数 */
   copies: number;
+  /** 打印头分辨率（点/英寸），用于点↔mm 换算，默认 203 */
+  dpi: number;
 }

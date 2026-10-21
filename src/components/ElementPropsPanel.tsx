@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import type { LabelElement, Barcode2dElement, ImageElement } from '../types';
 import { Field, Num, Sel, SectionHeader, btnStyle } from './ui';
-import { BARCODE_TYPES, BARCODE2D_TYPES, ECCS, FONTS, IMAGE_FORMATS, ROTATIONS } from '../lib/fonts';
+import { BARCODE_TYPES, BARCODE2D_TYPES, ECCS, FONTS, IMAGE_FORMATS, ROTATIONS, loadCustomFonts, addCustomFont } from '../lib/fonts';
 
 interface Props {
   el: LabelElement | null;
@@ -17,6 +18,49 @@ const TYPE_LABEL: Record<LabelElement['type'], string> = {
   line: '直线', box: '方框', ellipse: '椭圆', circle: '圆', arc: '圆弧',
   block: '填充块', reverse: '反白区', diagonal: '反斜线', image: '图像',
 };
+
+/** 字体选择器：内置 + 自定义字体下拉，末尾提供「+ 添加自定义字体」入口 */
+function FontPicker({ value, onChange }: { value: string; onChange: (font: string) => void }) {
+  // 自定义字体列表（状态，随添加/持久化刷新）
+  const [custom, setCustom] = useState<string[]>(() => loadCustomFonts());
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const options = [...FONTS, ...custom.map((n) => ({ value: n, label: `${n} (自定义)` }))];
+
+  const commitAdd = () => {
+    const name = draft.trim();
+    if (!name) { setAdding(false); setDraft(''); return; }
+    setCustom(addCustomFont(name));
+    onChange(name); // 添加后直接选中新字体
+    setAdding(false);
+    setDraft('');
+  };
+
+  return (
+    <div>
+      <select style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid #d0d5dd', fontSize: 13, boxSizing: 'border-box', color: '#1d2939' }}
+        value={value} onChange={(e) => { if (e.target.value === '__add__') { setAdding(true); setDraft(''); } else onChange(e.target.value); }}>
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        <option value="__add__">＋ 添加自定义字体…</option>
+      </select>
+      {adding && (
+        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+          <input
+            autoFocus
+            placeholder="字体名，如 TST24.BF2"
+            style={{ flex: 1, padding: '5px 8px', borderRadius: 6, border: '1px solid #d0d5dd', fontSize: 13, boxSizing: 'border-box', color: '#1d2939' }}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') commitAdd(); if (e.key === 'Escape') { setAdding(false); setDraft(''); } }}
+          />
+          <button style={{ ...btnStyle, fontSize: 12, padding: '3px 10px' }} onClick={commitAdd}>添加</button>
+          <button style={{ ...btnStyle, fontSize: 12, padding: '3px 8px', color: '#667085' }} onClick={() => { setAdding(false); setDraft(''); }}>取消</button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ElementPropsPanel({ el, open, onToggle, onChange, onDuplicate, onDelete, selectedCount }: Props) {
   return (
@@ -35,8 +79,8 @@ export default function ElementPropsPanel({ el, open, onToggle, onChange, onDupl
                 </span>
               </div>
 
-              <Field name="X (mm)"><Num value={el.x} onChange={(v) => onChange({ x: v })} step={0.1} /></Field>
-              <Field name="Y (mm)"><Num value={el.y} onChange={(v) => onChange({ y: v })} step={0.1} /></Field>
+              <Field name="X (点)"><Num value={el.x} onChange={(v) => onChange({ x: v })} step={0.1} /></Field>
+              <Field name="Y (点)"><Num value={el.y} onChange={(v) => onChange({ y: v })} step={0.1} /></Field>
 
               {el.type === 'text' && (
                 <>
@@ -45,10 +89,7 @@ export default function ElementPropsPanel({ el, open, onToggle, onChange, onDupl
                       value={el.content} onChange={(e) => onChange({ content: e.target.value })} />
                   </Field>
                   <Field name="字体">
-                    <select style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid #d0d5dd', fontSize: 13, boxSizing: 'border-box', color: '#1d2939' }}
-                      value={el.font} onChange={(e) => onChange({ font: e.target.value })}>
-                      {FONTS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-                    </select>
+                    <FontPicker value={el.font} onChange={(font) => onChange({ font })} />
                   </Field>
                   <Field name="横向放大 (xMult)"><Num value={el.xMult} onChange={(v) => onChange({ xMult: v })} step={0.5} /></Field>
                   <Field name="纵向放大 (yMult)"><Num value={el.yMult} onChange={(v) => onChange({ yMult: v })} step={0.5} /></Field>
@@ -67,7 +108,7 @@ export default function ElementPropsPanel({ el, open, onToggle, onChange, onDupl
                       {BARCODE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </Field>
-                  <Field name="高度 (mm)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
+                  <Field name="高度 (点)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
                   <Field name="可读字符">
                     <select style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid #d0d5dd', fontSize: 13, boxSizing: 'border-box', color: '#1d2939' }}
                       value={el.humanReadable} onChange={(e) => onChange({ humanReadable: parseInt(e.target.value) })}>
@@ -93,16 +134,16 @@ export default function ElementPropsPanel({ el, open, onToggle, onChange, onDupl
 
               {el.type === 'line' && (
                 <>
-                  <Field name="长度 (mm)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
-                  <Field name="粗细 (mm)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.1} /></Field>
+                  <Field name="长度 (点)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
+                  <Field name="粗细 (点)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.1} /></Field>
                 </>
               )}
 
               {el.type === 'box' && (
                 <>
-                  <Field name="宽 (mm)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
-                  <Field name="高 (mm)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
-                  <Field name="线宽 (mm)"><Num value={el.thickness} onChange={(v) => onChange({ thickness: v })} step={0.1} /></Field>
+                  <Field name="宽 (点)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
+                  <Field name="高 (点)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
+                  <Field name="线宽 (点)"><Num value={el.thickness} onChange={(v) => onChange({ thickness: v })} step={0.1} /></Field>
                 </>
               )}
 
@@ -118,55 +159,55 @@ export default function ElementPropsPanel({ el, open, onToggle, onChange, onDupl
                       {BARCODE2D_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </Field>
-                  <Field name="宽 (mm)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
-                  <Field name="高 (mm)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
+                  <Field name="宽 (点)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
+                  <Field name="高 (点)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
                 </>
               )}
 
               {el.type === 'ellipse' && (
                 <>
-                  <Field name="宽 (mm)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
-                  <Field name="高 (mm)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
-                  <Field name="线宽 (mm)"><Num value={el.thickness} onChange={(v) => onChange({ thickness: v })} step={0.1} /></Field>
+                  <Field name="宽 (点)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
+                  <Field name="高 (点)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
+                  <Field name="线宽 (点)"><Num value={el.thickness} onChange={(v) => onChange({ thickness: v })} step={0.1} /></Field>
                 </>
               )}
 
               {el.type === 'circle' && (
                 <>
-                  <Field name="直径 (mm)"><Num value={el.diameter} onChange={(v) => onChange({ diameter: v })} step={0.5} /></Field>
-                  <Field name="线宽 (mm)"><Num value={el.thickness} onChange={(v) => onChange({ thickness: v })} step={0.1} /></Field>
+                  <Field name="直径 (点)"><Num value={el.diameter} onChange={(v) => onChange({ diameter: v })} step={0.5} /></Field>
+                  <Field name="线宽 (点)"><Num value={el.thickness} onChange={(v) => onChange({ thickness: v })} step={0.1} /></Field>
                 </>
               )}
 
               {el.type === 'arc' && (
                 <>
-                  <Field name="宽 (mm)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
-                  <Field name="高 (mm)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
+                  <Field name="宽 (点)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
+                  <Field name="高 (点)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
                   <Field name="起始角度 (0-360)"><Num value={el.startAngle} onChange={(v) => onChange({ startAngle: v })} /></Field>
                   <Field name="扫过角度 (0-360)"><Num value={el.sweepAngle} onChange={(v) => onChange({ sweepAngle: v })} /></Field>
-                  <Field name="线宽 (mm)"><Num value={el.thickness} onChange={(v) => onChange({ thickness: v })} step={0.1} /></Field>
+                  <Field name="线宽 (点)"><Num value={el.thickness} onChange={(v) => onChange({ thickness: v })} step={0.1} /></Field>
                 </>
               )}
 
               {el.type === 'block' && (
                 <>
-                  <Field name="宽 (mm)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
-                  <Field name="高 (mm)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
+                  <Field name="宽 (点)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
+                  <Field name="高 (点)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
                 </>
               )}
 
               {el.type === 'reverse' && (
                 <>
-                  <Field name="宽 (mm)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
-                  <Field name="高 (mm)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
+                  <Field name="宽 (点)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
+                  <Field name="高 (点)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
                 </>
               )}
 
               {el.type === 'diagonal' && (
                 <>
-                  <Field name="横向长度 (mm)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
-                  <Field name="纵向高度 (mm)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
-                  <Field name="线宽 (mm)"><Num value={el.thickness} onChange={(v) => onChange({ thickness: v })} step={0.1} /></Field>
+                  <Field name="横向长度 (点)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
+                  <Field name="纵向高度 (点)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
+                  <Field name="线宽 (点)"><Num value={el.thickness} onChange={(v) => onChange({ thickness: v })} step={0.1} /></Field>
                 </>
               )}
 
@@ -184,8 +225,8 @@ export default function ElementPropsPanel({ el, open, onToggle, onChange, onDupl
                   </Field>
                   {el.format === 'BMP' && (
                     <>
-                      <Field name="宽 (mm)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
-                      <Field name="高 (mm)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
+                      <Field name="宽 (点)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
+                      <Field name="高 (点)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
                     </>
                   )}
                 </>
