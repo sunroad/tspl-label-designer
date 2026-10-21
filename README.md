@@ -5,7 +5,7 @@
 ## 功能
 
 - **可视化画布**：按真实物理尺寸（203 DPI，mm ↔ 点换算）预览标签，支持鼠标拖拽移动元素
-- **五类元素**：文本、条形码、二维码、直线、方框
+- **十三类元素**：文本、条形码、二维码、二维条码（PDF417/DataMatrix/Aztec/MaxiCode）、直线、方框、椭圆、圆、圆弧、填充块、反白区、反斜线、图像（BMP/PCX 占位）
 - **属性编辑**：坐标、字体、码制、放大倍数、旋转角度等
 - **标签信息设置**：标签宽高、间隙、打印速度、浓度、方向、份数（可折叠）
 - **导出 TSPL**：一键查看、复制、下载 `.tspl` 指令文件
@@ -39,6 +39,7 @@ src/
     fonts.ts                # 字体表 / 码制 / 旋转角度常量
     tspl.ts                 # 元素 → TSPL 指令生成 + 包围盒估算
     parse.ts                # TSPL 指令 → 元素解析
+    tsplSyntax.ts           # TSPL 指令清单 + 语法高亮
     id.ts                   # 元素 ID 生成
   components/
     Canvas.tsx              # 画布（拖拽 + 缩放）
@@ -47,6 +48,7 @@ src/
     LabelInfoPanel.tsx      # 右侧「标签信息设置」
     ElementPropsPanel.tsx   # 右侧「元素属性设置」
     TsplModal.tsx           # 导出弹窗
+    TsplEditor.tsx          # TSPL 代码编辑器（语法高亮 + 标签补全）
     ImportModal.tsx         # 导入弹窗
     ui.tsx                  # 基础 UI 组件
     preview.ts              # 条码/二维码示意渲染
@@ -81,7 +83,7 @@ TSPL 中不同字段单位不同，本项目已统一处理：
 ## 说明
 
 - 条码与二维码在画布中为**示意图形**（种子随机生成），实际打印精度以打印机渲染为准
-- 支持导入的指令：`SIZE` / `GAP` / `SPEED` / `DENSITY` / `DIRECTION` / `PRINT` / `TEXT` / `BARCODE` / `QRCODE` / `BAR` / `BOX`，其余指令导入时会提示跳过
+- 支持导入的指令：`SIZE` / `GAP` / `SPEED` / `DENSITY` / `DIRECTION` / `PRINT` / `TEXT` / `BARCODE` / `QRCODE` / `BAR` / `BOX` / `ELLIPSE` / `CIRCLE` / `ARC` / `BLOCK` / `REVERSE` / `DIAGONAL` / `PUTBMP` / `PUTPCX` / `PDF417` / `DMATRIX` / `AZTEC` / `MAXICODE`，其余指令导入时会提示跳过
 
 ## 技术栈
 
