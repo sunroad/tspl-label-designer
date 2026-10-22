@@ -26,7 +26,11 @@ function FontPicker({ value, onChange }: { value: string; onChange: (font: strin
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
 
-  const options = [...FONTS, ...custom.map((n) => ({ value: n, label: `${n} (自定义)` }))];
+  const known = [...FONTS, ...custom.map((n) => ({ value: n, label: `${n} (自定义)` }))];
+  // 导入的字体可能尚未加入本地列表，仍需显示当前真实值。
+  const options = value && !known.some((option) => option.value === value)
+    ? [...known, { value, label: `${value} (导入)` }]
+    : known;
 
   const commitAdd = () => {
     const name = draft.trim();
