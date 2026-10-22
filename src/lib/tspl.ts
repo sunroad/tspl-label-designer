@@ -24,7 +24,8 @@ export function getBox(el: LabelElement, dpi: number = 203): { w: number; h: num
       return { w: Math.max(10, el.content.length * perChar), h: el.height };
     }
     case 'qrcode': {
-      const s = el.cellWidth * 29;
+      // 打印机模块宽度与画布示意相差一级，预览最低保留 1 点。
+      const s = Math.max(1, el.cellWidth - 1) * 29;
       return { w: s, h: s };
     }
     case 'line':
