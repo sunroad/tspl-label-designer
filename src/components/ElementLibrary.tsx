@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react';
 import type { LabelElement } from '../types';
 import { SectionHeader } from './ui';
+import ElementIcon from './ElementIcon';
 
 interface Props {
   elements: LabelElement[];
@@ -53,8 +54,8 @@ export default function ElementLibrary({ elements, selectedIds, onSelect, onAdd 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
             {ADD_ITEMS.map(({ type, label }) => (
               <button key={type} style={gridBtnStyle} onClick={() => onAdd(type)}>
-                <span style={{ fontSize: 15, lineHeight: 1, color: '#475467' }}>＋</span>
-                <span style={{ fontSize: 11, marginTop: 3 }}>{label}</span>
+                <span style={{ color: '#475467', lineHeight: 0 }}><ElementIcon type={type} /></span>
+                <span style={{ fontSize: 11, marginTop: 5 }}>{label}</span>
               </button>
             ))}
           </div>
@@ -70,12 +71,18 @@ export default function ElementLibrary({ elements, selectedIds, onSelect, onAdd 
           {elements.map((e) => (
             <div key={e.id} onClick={() => onSelect(e.id)}
               style={{
+                display: 'flex', alignItems: 'center',
                 padding: '5px 8px', borderRadius: 6, marginBottom: 4, fontSize: 12, cursor: 'pointer',
                 background: selectedIds.includes(e.id) ? '#eaf1ff' : '#f8f9fb',
                 border: selectedIds.includes(e.id) ? '1px solid #b6cfff' : '1px solid transparent',
               }}>
-              {TYPE_LABEL[e.type]}
-              {'content' in e && <span style={{ color: '#98a2b3', marginLeft: 6 }}>{e.content}</span>}
+              <span style={{ display: 'flex', flex: 'none', marginRight: 6, color: '#475467' }}>
+                <ElementIcon type={e.type} size={14} />
+              </span>
+              <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                {TYPE_LABEL[e.type]}
+                {'content' in e && <span style={{ color: '#98a2b3', marginLeft: 6 }}>{e.content}</span>}
+              </span>
             </div>
           ))}
         </div>
