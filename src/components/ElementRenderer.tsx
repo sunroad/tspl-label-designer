@@ -14,10 +14,11 @@ interface Props {
   onPointerDown: (e: React.PointerEvent, el: LabelElement) => void;
   onPointerMove: (e: React.PointerEvent) => void;
   onPointerUp: (e: React.PointerEvent) => void;
+  onPointerCancel?: (e: React.PointerEvent) => void;
 }
 
 export default function ElementRenderer({
-  el, zoom, dpi, selected, onPointerDown, onPointerMove, onPointerUp,
+  el, zoom, dpi, selected, onPointerDown, onPointerMove, onPointerUp, onPointerCancel,
 }: Props) {
   // getBox 返回「点(dot)」；先 d2mm 换算成 mm，再乘 zoom(px/mm) 得画布像素
   const { w, h } = getBox(el, dpi);
@@ -187,6 +188,7 @@ export default function ElementRenderer({
       onPointerDown={(e) => onPointerDown(e, el)}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
       style={{ cursor: 'move' }}
     >
       {inner}

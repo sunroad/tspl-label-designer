@@ -1,6 +1,8 @@
 import React from 'react';
 import type { LabelElement, LabelSettings, PrinterOffset } from '../types';
-import { mm2d, fmt } from '../lib/units';
+import { mm2d, d2mm, fmt } from '../lib/units';
+import { getBox } from '../lib/tspl';
+import { rotatedAabb, snapRect, unionRects, type Guide, type Rect } from '../lib/guides';
 import ElementRenderer from './ElementRenderer';
 import Ruler from './Ruler';
 
@@ -22,10 +24,24 @@ interface Props {
   onMove: (updates: MoveUpdate[]) => void;
 }
 
+/** 吸附阈值：约 6 屏幕像素对应的点(dot)数 */
+const snapThresholdDots = (zoom: number, dpi: number): number =>
+  Math.max(1, mm2d(6 / zoom, dpi));
+
+function labelCanvasRect(label: LabelSettings): Rect {
+  return {
+    x: 0,
+    y: 0,
+    w: mm2d(label.width, label.dpi),
+    h: mm2d(label.height, label.dpi),
+  };
+}
+
 export default function Canvas({
   label, printerOffset, elements, selectedIds, zoom, showRuler, onSelect, onMove,
 }: Props) {
   const dragRef = React.useRef<{ ids: string[]; origins: Map<string, { x: number; y: number }>; px: number; py: number } | null>(null);
+  const [guides, setGuides] = React.useState<Guide[]>([]);
 
   const onPointerDown = (e: React.PointerEvent, el: LabelElement) => {
     if (e.button !== 0) return;
@@ -53,8 +69,37 @@ export default function Canvas({
     // 像素位移 → mm → 点(dot)，与元素点存储保持一致
     const dxmm = (e.clientX - d.px) / zoom;
     const dymm = (e.clientY - d.py) / zoom;
-    const dx = mm2d(dxmm, label.dpi);
-    const dy = mm2d(dymm, label.dpi);
+    let dx = mm2d(dxmm, label.dpi);
+    let dy = mm2d(dymm, label.dpi);
+
+    const dragSet = new Set(d.ids);
+    const movingRects: Rect[] = [];
+    for (const id of d.ids) {
+      const o = d.origins.get(id);
+      const el = elements.find((x) => x.id === id);
+      if (!o || !el) continue;
+      const b = getBox(el, label.dpi);
+      movingRects.push(rotatedAabb(o.x + dx, o.y + dy, b.w, b.h, el.rotation ?? 0));
+    }
+    const group = unionRects(movingRects);
+    if (group) {
+      const targets: Rect[] = [
+        labelCanvasRect(label),
+        ...elements
+          .filter((el) => !dragSet.has(el.id))
+          .map((el) => {
+            const b = getBox(el, label.dpi);
+            return rotatedAabb(el.x, el.y, b.w, b.h, el.rotation ?? 0);
+          }),
+      ];
+      const snap = snapRect(group, targets, snapThresholdDots(zoom, label.dpi));
+      dx += snap.dx;
+      dy += snap.dy;
+      setGuides(snap.guides);
+    } else {
+      setGuides([]);
+    }
+
     const updates: MoveUpdate[] = d.ids.map((id) => {
       const o = d.origins.get(id)!;
       return { id, x: fmt(o.x + dx), y: fmt(o.y + dy) };
@@ -62,11 +107,11 @@ export default function Canvas({
     onMove(updates);
   };
 
-  const onPointerUp = (e: React.PointerEvent) => {
-    if (dragRef.current) {
-      try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch {}
-      dragRef.current = null;
-    }
+  const endDrag = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch {}
+    dragRef.current = null;
+    setGuides([]);
   };
 
   const W = label.width * zoom;
@@ -75,6 +120,37 @@ export default function Canvas({
   const offsetY = (label.printOffsetY + printerOffset.y) * zoom * 25.4 / label.dpi;
   const R = 20; // 上下水平标尺厚度（px）：容纳刻度线 8 + 数字高 9
   const RV = 24; // 左右垂直标尺厚度（px）：容纳长刻度线 8 + 空隙 3 + 两位数宽约 11
+  const guideLines = guides.length > 0 && (
+    <g pointerEvents="none">
+      {guides.map((g) => {
+        if (g.orientation === 'v') {
+          const x = offsetX + d2mm(g.pos, label.dpi) * zoom;
+          return (
+            <line key={`v-${g.pos}`} x1={x} y1={0} x2={x} y2={H}
+              stroke="#e11d48" strokeWidth={1} strokeDasharray="4 3" />
+          );
+        }
+        const y = offsetY + d2mm(g.pos, label.dpi) * zoom;
+        return (
+          <line key={`h-${g.pos}`} x1={0} y1={y} x2={W} y2={y}
+            stroke="#e11d48" strokeWidth={1} strokeDasharray="4 3" />
+        );
+      })}
+    </g>
+  );
+
+  const svgBody = (
+    <>
+      <g transform={`translate(${offsetX} ${offsetY})`}>
+        {elements.map((el) => (
+          <ElementRenderer key={el.id} el={el} zoom={zoom} dpi={label.dpi} selected={selectedIds.includes(el.id)}
+            onPointerDown={onPointerDown} onPointerMove={onPointerMove}
+            onPointerUp={endDrag} onPointerCancel={endDrag} />
+        ))}
+      </g>
+      {guideLines}
+    </>
+  );
 
   return (
     <div style={{ flex: 1, overflow: 'auto', padding: 20, display: 'flex' }}>
@@ -91,12 +167,7 @@ export default function Canvas({
               <svg width={W} height={H}
                 style={{ display: 'block', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,.15)' }}
                 onPointerDown={() => onSelect([])}>
-                <g transform={`translate(${offsetX} ${offsetY})`}>
-                  {elements.map((el) => (
-                    <ElementRenderer key={el.id} el={el} zoom={zoom} dpi={label.dpi} selected={selectedIds.includes(el.id)}
-                      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} />
-                  ))}
-                </g>
+                {svgBody}
               </svg>
               <Ruler orientation="vertical" lengthMm={label.height} zoom={zoom} thickness={RV} flip />
               <div style={{ background: '#eef1f5' }} />
@@ -107,12 +178,7 @@ export default function Canvas({
             <svg width={W} height={H}
               style={{ display: 'block', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,.15)' }}
               onPointerDown={() => onSelect([])}>
-              <g transform={`translate(${offsetX} ${offsetY})`}>
-                {elements.map((el) => (
-                  <ElementRenderer key={el.id} el={el} zoom={zoom} dpi={label.dpi} selected={selectedIds.includes(el.id)}
-                    onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} />
-                ))}
-              </g>
+              {svgBody}
             </svg>
           )}
         </div>
