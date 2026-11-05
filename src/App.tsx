@@ -72,6 +72,7 @@ export default function App() {
   const [showImport, setShowImport] = useState(false);
   const [showCalibrate, setShowCalibrate] = useState(false);
   const [labelInfoOpen, setLabelInfoOpen] = useState(true);
+  const [printerSettingsOpen, setPrinterSettingsOpen] = useState(false);
   const [elPropsOpen, setElPropsOpen] = useState(true);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
@@ -262,7 +263,9 @@ export default function App() {
               label={label}
               printerOffset={printerOffset}
               open={labelInfoOpen}
+              printerOpen={printerSettingsOpen}
               onToggle={() => setLabelInfoOpen((o) => !o)}
+              onPrinterToggle={() => setPrinterSettingsOpen((o) => !o)}
               onChange={(patch) => setLabel((l) => ({ ...l, ...patch }))}
               onPrinterOffsetChange={(patch) => setPrinterOffset((offset) => ({ ...offset, ...patch }))}
             />
