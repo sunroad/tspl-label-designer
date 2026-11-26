@@ -79,6 +79,8 @@ export default function App() {
   const { label, elements, variables } = history.present;
   const [printerOffset, setPrinterOffset] = useState<PrinterOffset>(readPrinterOffset);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const copiedElementsRef = useRef<LabelElement[]>([]);
+  const pasteCountRef = useRef(0);
   // 已校准的屏幕 PPI（0=未校准）；zoom 初始取 1:1 倍率，未校准则用默认 4px/mm
   const [screenPpi, setScreenPpi] = useState<number>(() => readScreenPpi());
   const [zoom, setZoom] = useState<number>(() => ppiToZoom(readScreenPpi()) || 4);
@@ -182,18 +184,42 @@ export default function App() {
     setSelectedIds([]);
   };
 
+  const undo = () => { dispatch({ type: 'undo' }); setSelectedIds([]); };
+  const redo = () => { dispatch({ type: 'redo' }); setSelectedIds([]); };
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.key !== 'Delete' && event.key !== 'Backspace') || event.defaultPrevented || event.isComposing ||
-          event.metaKey || event.ctrlKey || event.altKey || !selectedIds.length || showTSPL || showImport || showCalibrate) return;
+      if (event.defaultPrevented || event.isComposing || showTSPL || showImport || showCalibrate) return;
       const target = event.target;
       if (target instanceof Element && target.closest('input, textarea, select, [contenteditable]')) return;
+
+      const key = event.key.toLowerCase();
+      const modifier = (event.metaKey || event.ctrlKey) && !event.altKey;
+      if (modifier && key === 'a' && !event.shiftKey && elements.length) {
+        setSelectedIds(elements.map((el) => el.id));
+      } else if (modifier && key === 'c' && !event.shiftKey && selectedIds.length) {
+        copiedElementsRef.current = elements.filter((el) => selectedIds.includes(el.id));
+        pasteCountRef.current = 0;
+      } else if (modifier && key === 'v' && !event.shiftKey && copiedElementsRef.current.length) {
+        const offset = mm2d(2 * ++pasteCountRef.current, label.dpi);
+        const copies = copiedElementsRef.current.map((el) => ({ ...el, id: nid(), x: el.x + offset, y: el.y + offset } as LabelElement));
+        dispatch({ type: 'edit', change: (doc) => ({ ...doc, elements: [...doc.elements, ...copies] }) });
+        setSelectedIds(copies.map((el) => el.id));
+      } else if (modifier && key === 'z' && !event.shiftKey && history.past.length) {
+        undo();
+      } else if (modifier && ((key === 'z' && event.shiftKey) || (key === 'y' && !event.shiftKey)) && history.future.length) {
+        redo();
+      } else if (!modifier && !event.metaKey && !event.ctrlKey && !event.altKey &&
+                 (key === 'delete' || key === 'backspace') && selectedIds.length) {
+        removeSelected();
+      } else {
+        return;
+      }
       event.preventDefault();
-      removeSelected();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [selectedIds, showTSPL, showImport, showCalibrate]);
+  }, [selectedIds, elements, label.dpi, history.past.length, history.future.length, showTSPL, showImport, showCalibrate]);
 
   const duplicateEl = (id: string) => {
     const src = elements.find((e) => e.id === id);
@@ -284,8 +310,8 @@ export default function App() {
 
   const editingTools = (
     <div className="toolbar-editing">
-      <button type="button" title="撤销" aria-label="撤销" disabled={!history.past.length} style={{ ...iconBtnStyle, opacity: history.past.length ? 1 : 0.4 }} onClick={() => { dispatch({ type: 'undo' }); setSelectedIds([]); }}><Undo2 size={16} strokeWidth={1.8} /></button>
-      <button type="button" title="重做" aria-label="重做" disabled={!history.future.length} style={{ ...iconBtnStyle, opacity: history.future.length ? 1 : 0.4 }} onClick={() => { dispatch({ type: 'redo' }); setSelectedIds([]); }}><Redo2 size={16} strokeWidth={1.8} /></button>
+      <button type="button" title="撤销" aria-label="撤销" disabled={!history.past.length} style={{ ...iconBtnStyle, opacity: history.past.length ? 1 : 0.4 }} onClick={undo}><Undo2 size={16} strokeWidth={1.8} /></button>
+      <button type="button" title="重做" aria-label="重做" disabled={!history.future.length} style={{ ...iconBtnStyle, opacity: history.future.length ? 1 : 0.4 }} onClick={redo}><Redo2 size={16} strokeWidth={1.8} /></button>
       <span className="toolbar-divider" />
       <button title="缩小" style={iconBtnStyle} onClick={() => setZoom((z) => Math.max(1, z - 0.5))}>−</button>
       <span style={{ fontSize: 12, color: '#667085', minWidth: 78 }}>{zoom.toFixed(2)} px/mm</span>
