@@ -22,7 +22,9 @@ export function getBox(el: LabelElement, dpi: number = 203): { w: number; h: num
     case 'barcode': {
       let perChar = el.narrow * 11 * 0.85;
       if (/^EAN|UPCA|UPCE/.test(el.codeType)) perChar = el.narrow * 8.2;
-      return { w: Math.max(10, el.content.length * perChar), h: el.height };
+      // 可读文字的基线在条纹下方 2.5 mm；额外留出约 0.5 mm 的字形下降部分。
+      return { w: Math.max(10, el.content.length * perChar),
+        h: el.height + (el.humanReadable === 1 ? mm2d(3, dpi) : 0) };
     }
     case 'qrcode': {
       // 打印机模块宽度与画布示意相差一级，预览最低保留 1 点。

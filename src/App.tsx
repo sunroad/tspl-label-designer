@@ -81,6 +81,7 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const copiedElementsRef = useRef<LabelElement[]>([]);
   const pasteCountRef = useRef(0);
+  const nudgingRef = useRef(false);
   // 已校准的屏幕 PPI（0=未校准）；zoom 初始取 1:1 倍率，未校准则用默认 4px/mm
   const [screenPpi, setScreenPpi] = useState<number>(() => readScreenPpi());
   const [zoom, setZoom] = useState<number>(() => ppiToZoom(readScreenPpi()) || 4);
@@ -212,13 +213,37 @@ export default function App() {
       } else if (!modifier && !event.metaKey && !event.ctrlKey && !event.altKey &&
                  (key === 'delete' || key === 'backspace') && selectedIds.length) {
         removeSelected();
+      } else if (!modifier && !event.metaKey && !event.ctrlKey && !event.altKey && selectedIds.length &&
+                 (key === 'arrowleft' || key === 'arrowright' || key === 'arrowup' || key === 'arrowdown')) {
+        const step = event.shiftKey ? 10 : 1;
+        const dx = key === 'arrowleft' ? -step : key === 'arrowright' ? step : 0;
+        const dy = key === 'arrowup' ? -step : key === 'arrowdown' ? step : 0;
+        const ids = new Set(selectedIds);
+        nudgingRef.current = true;
+        dispatch({ type: 'edit', drag: true, change: (doc) => ({ ...doc,
+          elements: doc.elements.map((el) => ids.has(el.id) ? { ...el, x: el.x + dx, y: el.y + dy } : el),
+        }) });
       } else {
         return;
       }
       event.preventDefault();
     };
+    const endNudge = () => {
+      if (!nudgingRef.current) return;
+      nudgingRef.current = false;
+      dispatch({ type: 'endDrag' });
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key.startsWith('Arrow')) endNudge();
+    };
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', endNudge);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', endNudge);
+    };
   }, [selectedIds, elements, label.dpi, history.past.length, history.future.length, showTSPL, showImport, showCalibrate]);
 
   const duplicateEl = (id: string) => {
@@ -273,7 +298,7 @@ export default function App() {
     setShowImport(false);
   };
 
-  // 多选元素对齐：按各元素包围盒计算目标坐标，一次性不可变更新
+  // 多选元素对齐与分散：按预览包围盒计算位置，一次性不可变更新
   const alignSelected = (mode: AlignMode) => {
     if (selectedIds.length < 2) return;
     const sel = elements.filter((e) => selectedIds.includes(e.id));
@@ -283,18 +308,34 @@ export default function App() {
     const maxX = Math.max(...boxes.map(({ e, b }) => e.x + b.w));
     const maxY = Math.max(...boxes.map(({ e, b }) => e.y + b.h));
     const target = new Map<string, { x: number; y: number }>();
-    for (const { e, b } of boxes) {
-      let x = e.x;
-      let y = e.y;
-      switch (mode) {
-        case 'left': x = minX; break;
-        case 'hcenter': x = (minX + maxX - b.w) / 2; break;
-        case 'right': x = maxX - b.w; break;
-        case 'top': y = minY; break;
-        case 'vcenter': y = (minY + maxY - b.h) / 2; break;
-        case 'bottom': y = maxY - b.h; break;
+    if (mode === 'distributeH' || mode === 'distributeV') {
+      if (boxes.length < 3) return;
+      const horizontal = mode === 'distributeH';
+      const sorted = [...boxes].sort((a, b) => (horizontal ? a.e.x - b.e.x : a.e.y - b.e.y));
+      const start = horizontal ? sorted[0].e.x : sorted[0].e.y;
+      const last = sorted[sorted.length - 1];
+      const end = horizontal ? last.e.x + last.b.w : last.e.y + last.b.h;
+      const totalSize = sorted.reduce((sum, { b }) => sum + (horizontal ? b.w : b.h), 0);
+      const gap = (end - start - totalSize) / (sorted.length - 1);
+      let cursor = start;
+      for (const { e, b } of sorted) {
+        target.set(e.id, { x: horizontal ? fmt(cursor) : e.x, y: horizontal ? e.y : fmt(cursor) });
+        cursor += (horizontal ? b.w : b.h) + gap;
       }
-      target.set(e.id, { x: fmt(x), y: fmt(y) });
+    } else {
+      for (const { e, b } of boxes) {
+        let x = e.x;
+        let y = e.y;
+        switch (mode) {
+          case 'left': x = minX; break;
+          case 'hcenter': x = (minX + maxX - b.w) / 2; break;
+          case 'right': x = maxX - b.w; break;
+          case 'top': y = minY; break;
+          case 'vcenter': y = (minY + maxY - b.h) / 2; break;
+          case 'bottom': y = maxY - b.h; break;
+        }
+        target.set(e.id, { x: fmt(x), y: fmt(y) });
+      }
     }
     dispatch({ type: 'edit', change: (doc) => {
       let changed = false;
@@ -323,7 +364,7 @@ export default function App() {
         </svg>
       </button>
       <span className="toolbar-divider" />
-      <AlignToolbar disabled={selectedIds.length < 2} onAlign={alignSelected} />
+      <AlignToolbar disabled={selectedIds.length < 2} selectedCount={selectedIds.length} onAlign={alignSelected} />
       <span className="toolbar-divider" />
       <button type="button" title={showRuler ? '关闭标尺' : '开启标尺'} aria-label={showRuler ? '关闭标尺' : '开启标尺'} aria-pressed={showRuler} style={iconBtnStyle} onClick={() => setShowRuler((v) => !v)}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">

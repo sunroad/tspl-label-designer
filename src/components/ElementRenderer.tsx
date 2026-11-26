@@ -110,11 +110,12 @@ export default function ElementRenderer({
       );
     }
   } else if (el.type === 'barcode') {
+    const barHeight = d2mm(el.height) * zoom;
     inner = (
       <g>
-        <EncodedSymbol el={el} width={wp} height={hp} />
+        <EncodedSymbol el={el} width={wp} height={barHeight} />
         {el.humanReadable === 1 && (
-          <text x={wp / 2} y={hp + 2.5 * zoom} textAnchor="middle"
+          <text x={wp / 2} y={barHeight + 2.5 * zoom} textAnchor="middle"
             style={{ fontSize: 2.25 * zoom, fill: '#111', fontFamily: 'monospace' }}>
             {el.content}
           </text>
