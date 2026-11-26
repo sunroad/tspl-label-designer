@@ -1,6 +1,6 @@
 import { useEffect, useId, useReducer, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Menu, Undo2, Redo2, FilePlus2, FileInput, CodeXml, Columns3, PanelLeft, PanelRight, RulerDimensionLine } from 'lucide-react';
+import { Menu, Undo2, Redo2, FilePlus2, FileInput, CodeXml, Columns3, PanelLeft, PanelRight, Square, RulerDimensionLine } from 'lucide-react';
 import type { LabelElement, LabelSettings, PrinterOffset } from './types';
 import { DEFAULT_ELEMENTS, DEFAULT_LABEL } from './defaults';
 import { generateTSPL, getBox } from './lib/tspl';
@@ -375,11 +375,11 @@ export default function App() {
       </button>
     </div>
   );
-  const viewMode = leftOpen && rightOpen ? 'both' : leftOpen ? 'left' : 'right';
-  const viewLabel = viewMode === 'both' ? '双侧面板' : viewMode === 'left' ? '仅左侧面板' : '仅右侧面板';
-  const chooseView = (mode: 'both' | 'left' | 'right') => {
-    setLeftOpen(mode !== 'right');
-    setRightOpen(mode !== 'left');
+  const viewMode = leftOpen && rightOpen ? 'both' : leftOpen ? 'left' : rightOpen ? 'right' : 'none';
+  const viewLabel = viewMode === 'both' ? '双侧面板' : viewMode === 'left' ? '仅左侧面板' : viewMode === 'right' ? '仅右侧面板' : '仅画布';
+  const chooseView = (mode: 'both' | 'left' | 'right' | 'none') => {
+    setLeftOpen(mode === 'both' || mode === 'left');
+    setRightOpen(mode === 'both' || mode === 'right');
     setViewMenuOpen(false);
     setToolbarOpen(false);
     viewButtonRef.current?.focus();
@@ -407,7 +407,7 @@ export default function App() {
       <button ref={viewButtonRef} type="button" aria-label={`选择视图，当前${viewLabel}`}
         aria-haspopup="menu" aria-expanded={viewMenuOpen} aria-controls={viewMenuOpen ? viewMenuId : undefined}
         style={iconBtnStyle} onClick={toggleViewMenu}>
-        {viewMode === 'left' ? <PanelLeft size={16} strokeWidth={1.8} /> : viewMode === 'right' ? <PanelRight size={16} strokeWidth={1.8} /> : <Columns3 size={16} strokeWidth={1.8} />}
+        {viewMode === 'left' ? <PanelLeft size={16} strokeWidth={1.8} /> : viewMode === 'right' ? <PanelRight size={16} strokeWidth={1.8} /> : viewMode === 'none' ? <Square size={16} strokeWidth={1.8} /> : <Columns3 size={16} strokeWidth={1.8} />}
       </button>
     </div>
   );
@@ -435,7 +435,7 @@ export default function App() {
         )}
       {viewMenuOpen && createPortal(
         <div ref={viewMenuRef} id={viewMenuId} role="menu" aria-label="选择视图" className="view-menu" style={viewMenuPosition}>
-          {([['both', '双侧面板', Columns3], ['left', '仅左侧面板', PanelLeft], ['right', '仅右侧面板', PanelRight]] as const).map(([mode, name, Icon]) =>
+          {([['both', '双侧面板', Columns3], ['left', '仅左侧面板', PanelLeft], ['right', '仅右侧面板', PanelRight], ['none', '仅画布（收起两侧）', Square]] as const).map(([mode, name, Icon]) =>
             <button key={mode} type="button" role="menuitemradio" aria-checked={viewMode === mode}
               onClick={() => chooseView(mode)}><Icon size={16} strokeWidth={1.8} />{name}</button>)}
         </div>, document.body)}
