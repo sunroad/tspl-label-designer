@@ -2,7 +2,8 @@ import { expect, it } from 'vitest';
 import { DEFAULT_LABEL } from '../defaults';
 import type { LabelElement } from '../types';
 import { generateTSPL, getBox } from './tspl';
-import { previewElement, resolvePreview, VARIABLE_TOKEN } from './variables';
+import { appendMissingVariables, previewElement, resolvePreview, VARIABLE_TOKEN } from './variables';
+import { parseTSPL } from './parse';
 
 it('变量仅改变预览内容和文字宽度，TSPL 导出保留占位符', () => {
   const text: LabelElement = { id: 'text', type: 'text', x: 0, y: 0, font: '1', rotation: 0, xMult: 1, yMult: 1, content: '单号：%order%' };
@@ -36,4 +37,21 @@ it('变量格式要求两侧包围符号一致且名称合法', () => {
   for (const token of ['%name#', '##name#', '%2name%', 'name', '%%', 'a name']) {
     expect(VARIABLE_TOKEN.test(token)).toBe(false);
   }
+});
+
+it('应用 TSPL 后补齐新变量并以 0 预览，已有定义保持不变', () => {
+  const source = [
+    'TEXT 0,0,"1",0,1,1,"%known% / %fresh% / %fresh%"',
+    'BARCODE 0,20,"128",72,1,0,2,3,"##batch##"',
+    'QRCODE 0,40,M,4,A,0,"#%qr#%"',
+  ].join('\n');
+  const elements = parseTSPL(source).elements;
+  const existing = [{ token: '%known%', preview: '原值' }];
+  const variables = appendMissingVariables(elements, existing);
+  expect(variables).toEqual([
+    existing[0], { token: '%fresh%', preview: '0' },
+    { token: '##batch##', preview: '0' }, { token: '#%qr#%', preview: '0' },
+  ]);
+  expect(previewElement(elements[0], variables)).toMatchObject({ content: '原值 / 0 / 0' });
+  expect(appendMissingVariables(elements, variables)).toBe(variables);
 });

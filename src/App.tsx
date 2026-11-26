@@ -16,7 +16,7 @@ import ImportModal from './components/ImportModal';
 import CalibrateModal from './components/CalibrateModal';
 import { iconBtnStyle } from './components/ui';
 import VariablePanel from './components/VariablePanel';
-import { loadVariables, previewElement, saveVariables, type VariableDefinition } from './lib/variables';
+import { appendMissingVariables, loadVariables, previewElement, saveVariables, type VariableDefinition } from './lib/variables';
 
 type Document = { label: LabelSettings; elements: LabelElement[]; variables: VariableDefinition[] };
 type History = { present: Document; past: Document[]; future: Document[]; dragging: boolean };
@@ -287,7 +287,8 @@ export default function App() {
   const applyTSP = (text: string) => {
     if (!text.trim()) return;
     const r = parseTSPL(text, label.dpi);
-    dispatch({ type: 'edit', change: (doc) => ({ ...doc, label: r.label, elements: r.elements }) });
+    dispatch({ type: 'edit', change: (doc) => ({ ...doc, label: r.label, elements: r.elements,
+      variables: appendMissingVariables(r.elements, doc.variables) }) });
     setSelectedIds([]);
     // eslint-disable-next-line no-console
     if (r.errors.length) console.warn('TSPL 应用提示：', r.errors);

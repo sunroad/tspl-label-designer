@@ -2,7 +2,6 @@ import React from 'react';
 import type { LabelElement } from '../types';
 import { getBox } from '../lib/tspl';
 import { DOT_FONTS, charDotSize, isCJK, isCJKDotFont } from '../lib/fonts';
-import { dotMatrix } from '../lib/asciiDot';
 import { d2mm as baseD2mm } from '../lib/units';
 import { symbolImage } from './preview';
 
@@ -46,7 +45,7 @@ export default function ElementRenderer({
   if (el.type === 'text') {
     const f = DOT_FONTS[el.font];
     if (f) {
-      // 点阵字体：按字符取真实点阵宽高。
+      // 沿用点阵字体的字符尺寸和排布，仅使用普通 SVG 文本绘制。
       // 内置 0–5：纯英数为半尺寸方格；混排时英数半宽、与中文等高。
       // .BF2 保持原有半角/全角点阵尺寸。
       const chars = Array.from(el.content);
@@ -61,37 +60,13 @@ export default function ElementRenderer({
         const chH = d2mm(glyphH) * zoom;
         const yOffDots = Math.max(0, Math.floor((lineHDots - glyphH) / 2));
         const yOff = yOffDots * dot;
-        let node: React.ReactNode;
-        const m = dotMatrix(el.font, ch, mixed ? lineHDots : undefined);
-        if (m) {
-          const rects: React.ReactNode[] = [];
-          m.forEach((row, r) =>
-            row.forEach((on, c) => {
-              if (on) {
-                rects.push(
-                  <rect
-                    key={`${i}-${r}-${c}`}
-                    x={x + c * dot}
-                    y={yOff + r * dot}
-                    width={dot}
-                    height={dot}
-                    fill="#111"
-                  />,
-                );
-              }
-            }),
-          );
-          node = <g key={i}>{rects}</g>;
-        } else {
-          // 回退：按该字符真实点阵宽高压宽，并垂直居中到行高
-          node = (
-            <text key={i} x={x} y={yOff} dominantBaseline="hanging"
-              textLength={cw} lengthAdjust="spacingAndGlyphs"
-              style={{ fontSize: chH, fill: '#111', fontFamily: 'monospace' }}>
-              {ch}
-            </text>
-          );
-        }
+        const node = (
+          <text key={i} x={x} y={yOff} dominantBaseline="hanging"
+            textLength={cw} lengthAdjust="spacingAndGlyphs"
+            style={{ fontSize: chH, fill: '#111', fontFamily: 'monospace', whiteSpace: 'pre' }}>
+            {ch}
+          </text>
+        );
         x += cw;
         return node;
       });

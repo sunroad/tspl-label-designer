@@ -24,7 +24,7 @@ export function symbolSvg(el: SymbolElement): string | null {
     return bwipjs.toSVG({
       bcid, text: el.content, scale: 1,
       ...(el.type === 'qrcode' ? { eclevel: el.ecc, padding: 4 } : {}),
-      ...(el.type === 'barcode' ? { paddingwidth: 8 } : {}),
+      ...(el.type === 'barcode' ? { paddingwidth: 0 } : {}),
     });
   } catch {
     return null;
