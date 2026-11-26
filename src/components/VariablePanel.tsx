@@ -35,16 +35,15 @@ export default function VariablePanel({ variables, open, onToggle, onChange }: P
   const endDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
   };
-  const closeDialog = () => {
-    dragRef.current = null;
+  const closeDialog = () => { dragRef.current = null; reset(); };
+  const showDialog = () => {
     const dialog = dialogRef.current;
-    if (dialog) {
-      dialog.style.removeProperty('position');
-      dialog.style.removeProperty('margin');
-      dialog.style.removeProperty('left');
-      dialog.style.removeProperty('top');
-    }
-    reset();
+    if (!dialog) return;
+    dialog.showModal();
+    if (!dialog.style.left) return;
+    const rect = dialog.getBoundingClientRect();
+    dialog.style.left = `${Math.max(0, Math.min(rect.left, window.innerWidth - rect.width))}px`;
+    dialog.style.top = `${Math.max(0, Math.min(rect.top, window.innerHeight - rect.height))}px`;
   };
   const [editing, setEditing] = useState<string | null>(null);
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
@@ -54,10 +53,10 @@ export default function VariablePanel({ variables, open, onToggle, onChange }: P
 
   const selected = variables.find((item) => item.token === selectedToken);
   const reset = () => { setEditing(null); setToken(''); setPreview(''); setError(''); };
-  const add = () => { reset(); dialogRef.current?.showModal(); };
+  const add = () => { reset(); showDialog(); };
   const edit = (item: VariableDefinition) => {
     setEditing(item.token); setToken(item.token); setPreview(item.preview); setError('');
-    dialogRef.current?.showModal();
+    showDialog();
   };
   const save = (event: FormEvent) => {
     event.preventDefault();
