@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Plus } from 'lucide-react';
 import type { LabelElement, Barcode2dElement, ImageElement } from '../types';
-import { Field, Num, Sel, SectionHeader, btnStyle } from './ui';
+import { Field, Num, Sel, SectionHeader, btnStyle, iconBtnStyle } from './ui';
 import { BARCODE_TYPES, BARCODE2D_TYPES, ECCS, FONTS, IMAGE_FORMATS, ROTATIONS, loadCustomFonts, addCustomFont } from '../lib/fonts';
+import type { VariableDefinition } from '../lib/variables';
 
 interface Props {
   el: LabelElement | null;
+  variables?: VariableDefinition[];
   selectedCount?: number;
   open: boolean;
   onToggle: () => void;
@@ -43,11 +46,8 @@ function FontPicker({ value, onChange }: { value: string; onChange: (font: strin
 
   return (
     <div>
-      <select style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid #d0d5dd', fontSize: 13, boxSizing: 'border-box', color: '#1d2939' }}
-        value={value} onChange={(e) => { if (e.target.value === '__add__') { setAdding(true); setDraft(''); } else onChange(e.target.value); }}>
-        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        <option value="__add__">＋ 添加自定义字体…</option>
-      </select>
+      <Sel value={value} options={[...options, { value: '__add__', label: '＋ 添加自定义字体…' }]}
+        onChange={(font) => { if (font === '__add__') { setAdding(true); setDraft(''); } else onChange(font); }} />
       {adding && (
         <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
           <input
@@ -66,12 +66,54 @@ function FontPicker({ value, onChange }: { value: string; onChange: (font: strin
   );
 }
 
-export default function ElementPropsPanel({ el, open, onToggle, onChange, onDuplicate, onDelete, selectedCount }: Props) {
+function ContentField({ value, variables, onChange }: { value: string; variables: VariableDefinition[]; onChange: (value: string) => void }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [menuOpen]);
+
+  return <Field name="内容">
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      <input aria-label="内容" style={{ width: '100%', minWidth: 0, padding: '5px 8px', borderRadius: 6, border: '1px solid #d0d5dd', fontSize: 13, boxSizing: 'border-box', color: '#1d2939' }}
+        value={value} onChange={(e) => onChange(e.target.value)} />
+      {variables.length > 0 && <div ref={menuRef} style={{ position: 'relative', flexShrink: 0 }}>
+        <button type="button" title="插入变量" aria-label="插入变量" aria-expanded={menuOpen}
+          style={iconBtnStyle} onClick={() => setMenuOpen((open) => !open)}>
+          <Plus size={16} strokeWidth={1.8} />
+        </button>
+        {menuOpen && <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 10, marginTop: 4,
+          minWidth: 120, maxHeight: 200, overflowY: 'auto', background: '#fff', border: '1px solid #d0d5dd',
+          borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,.12)' }}>
+          {variables.map(({ token }) => <button key={token} type="button"
+            style={{ display: 'block', width: '100%', padding: '6px 10px', textAlign: 'left', border: 0,
+              background: 'transparent', color: '#1d2939', cursor: 'pointer', fontSize: 13 }}
+            onClick={() => { onChange(value + token); setMenuOpen(false); }}>{token}</button>)}
+        </div>}
+      </div>}
+    </div>
+  </Field>;
+}
+
+export default function ElementPropsPanel({ el, variables = [], open, onToggle, onChange, onDuplicate, onDelete, selectedCount }: Props) {
   return (
-    <div>
-      <SectionHeader title="元素属性设置" open={open} onToggle={onToggle} style={{ margin: '14px 0 10px' }} />
+    <div className="section-group">
+      <SectionHeader title="元素属性设置" open={open} onToggle={onToggle} />
       {open && (
-        <>
+        <div className="section-content">
           {!el && <div style={{ fontSize: 12, color: '#98a2b3' }}>{selectedCount && selectedCount > 1 ? `已选中 ${selectedCount} 个元素，可在顶部工具栏对齐。` : '点击画布中的元素查看并编辑属性。'}</div>}
           {el && (
             <div>
@@ -88,10 +130,7 @@ export default function ElementPropsPanel({ el, open, onToggle, onChange, onDupl
 
               {el.type === 'text' && (
                 <>
-                  <Field name="内容">
-                    <input style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid #d0d5dd', fontSize: 13, boxSizing: 'border-box', color: '#1d2939' }}
-                      value={el.content} onChange={(e) => onChange({ content: e.target.value })} />
-                  </Field>
+                  <ContentField value={el.content} variables={variables} onChange={(content) => onChange({ content })} />
                   <Field name="字体">
                     <FontPicker value={el.font} onChange={(font) => onChange({ font })} />
                   </Field>
@@ -102,23 +141,14 @@ export default function ElementPropsPanel({ el, open, onToggle, onChange, onDupl
 
               {el.type === 'barcode' && (
                 <>
-                  <Field name="内容">
-                    <input style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid #d0d5dd', fontSize: 13, boxSizing: 'border-box', color: '#1d2939' }}
-                      value={el.content} onChange={(e) => onChange({ content: e.target.value })} />
-                  </Field>
+                  <ContentField value={el.content} variables={variables} onChange={(content) => onChange({ content })} />
                   <Field name="码制">
-                    <select style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid #d0d5dd', fontSize: 13, boxSizing: 'border-box', color: '#1d2939' }}
-                      value={el.codeType} onChange={(e) => onChange({ codeType: e.target.value })}>
-                      {BARCODE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                    <Sel value={el.codeType} options={BARCODE_TYPES} onChange={(codeType) => onChange({ codeType })} />
                   </Field>
                   <Field name="高度 (点)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
                   <Field name="可读字符">
-                    <select style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid #d0d5dd', fontSize: 13, boxSizing: 'border-box', color: '#1d2939' }}
-                      value={el.humanReadable} onChange={(e) => onChange({ humanReadable: parseInt(e.target.value) })}>
-                      <option value={1}>显示 (1)</option>
-                      <option value={0}>隐藏 (0)</option>
-                    </select>
+                    <Sel value={el.humanReadable} options={[{ value: 1, label: '显示 (1)' }, { value: 0, label: '隐藏 (0)' }]}
+                      onChange={(v) => onChange({ humanReadable: parseInt(v) })} />
                   </Field>
                   <Field name="窄条宽 (点)"><Num value={el.narrow} onChange={(v) => onChange({ narrow: v })} /></Field>
                   <Field name="宽条宽 (点)"><Num value={el.wide} onChange={(v) => onChange({ wide: v })} /></Field>
@@ -127,10 +157,7 @@ export default function ElementPropsPanel({ el, open, onToggle, onChange, onDupl
 
               {el.type === 'qrcode' && (
                 <>
-                  <Field name="内容">
-                    <input style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid #d0d5dd', fontSize: 13, boxSizing: 'border-box', color: '#1d2939' }}
-                      value={el.content} onChange={(e) => onChange({ content: e.target.value })} />
-                  </Field>
+                  <ContentField value={el.content} variables={variables} onChange={(content) => onChange({ content })} />
                   <Field name="纠错等级"><Sel value={el.ecc} onChange={(v) => onChange({ ecc: v })} options={ECCS} /></Field>
                   <Field name="模块宽度 (点)"><Num value={el.cellWidth} onChange={(v) => onChange({ cellWidth: v })} min={1} max={10} /></Field>
                 </>
@@ -153,15 +180,10 @@ export default function ElementPropsPanel({ el, open, onToggle, onChange, onDupl
 
               {el.type === 'barcode2d' && (
                 <>
-                  <Field name="内容">
-                    <input style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid #d0d5dd', fontSize: 13, boxSizing: 'border-box', color: '#1d2939' }}
-                      value={el.content} onChange={(e) => onChange({ content: e.target.value })} />
-                  </Field>
+                  <ContentField value={el.content} variables={variables} onChange={(content) => onChange({ content })} />
                   <Field name="码制">
-                    <select style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid #d0d5dd', fontSize: 13, boxSizing: 'border-box', color: '#1d2939' }}
-                      value={el.codeType} onChange={(e) => onChange({ codeType: e.target.value as Barcode2dElement['codeType'] })}>
-                      {BARCODE2D_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                    <Sel value={el.codeType} options={BARCODE2D_TYPES}
+                      onChange={(codeType) => onChange({ codeType: codeType as Barcode2dElement['codeType'] })} />
                   </Field>
                   <Field name="宽 (点)"><Num value={el.width} onChange={(v) => onChange({ width: v })} step={0.5} /></Field>
                   <Field name="高 (点)"><Num value={el.height} onChange={(v) => onChange({ height: v })} step={0.5} /></Field>
@@ -222,10 +244,8 @@ export default function ElementPropsPanel({ el, open, onToggle, onChange, onDupl
                       value={el.fileName} onChange={(e) => onChange({ fileName: e.target.value })} />
                   </Field>
                   <Field name="格式">
-                    <select style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid #d0d5dd', fontSize: 13, boxSizing: 'border-box', color: '#1d2939' }}
-                      value={el.format} onChange={(e) => onChange({ format: e.target.value as ImageElement['format'] })}>
-                      {IMAGE_FORMATS.map((f) => <option key={f} value={f}>{f}</option>)}
-                    </select>
+                    <Sel value={el.format} options={IMAGE_FORMATS}
+                      onChange={(format) => onChange({ format: format as ImageElement['format'] })} />
                   </Field>
                   {el.format === 'BMP' && (
                     <>
@@ -239,7 +259,7 @@ export default function ElementPropsPanel({ el, open, onToggle, onChange, onDupl
               <Field name="旋转角度"><Sel value={el.rotation ?? 0} onChange={(v) => onChange({ rotation: parseInt(v) })} options={ROTATIONS} /></Field>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

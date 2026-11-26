@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useReducer, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Menu, Undo2, Redo2, FilePlus2, FileInput, CodeXml, Columns3, PanelLeft, PanelRight } from 'lucide-react';
 import type { LabelElement, LabelSettings, PrinterOffset } from './types';
 import { DEFAULT_ELEMENTS, DEFAULT_LABEL } from './defaults';
 import { generateTSPL, getBox } from './lib/tspl';
@@ -12,7 +14,33 @@ import AlignToolbar, { type AlignMode } from './components/AlignToolbar';
 import TsplModal from './components/TsplModal';
 import ImportModal from './components/ImportModal';
 import CalibrateModal from './components/CalibrateModal';
-import { btnStyle, iconBtnStyle } from './components/ui';
+import { iconBtnStyle } from './components/ui';
+import VariablePanel from './components/VariablePanel';
+import { loadVariables, previewElement, saveVariables, type VariableDefinition } from './lib/variables';
+
+type Document = { label: LabelSettings; elements: LabelElement[]; variables: VariableDefinition[] };
+type History = { present: Document; past: Document[]; future: Document[]; dragging: boolean };
+type HistoryAction =
+  | { type: 'edit'; change: (document: Document) => Document; drag?: boolean }
+  | { type: 'endDrag' } | { type: 'undo' } | { type: 'redo' };
+
+function historyReducer(state: History, action: HistoryAction): History {
+  if (action.type === 'endDrag') return state.dragging ? { ...state, dragging: false } : state;
+  if (action.type === 'undo') {
+    if (!state.past.length) return state;
+    return { present: state.past[state.past.length - 1], past: state.past.slice(0, -1),
+      future: [state.present, ...state.future].slice(0, 30), dragging: false };
+  }
+  if (action.type === 'redo') {
+    if (!state.future.length) return state;
+    return { present: state.future[0], past: [...state.past, state.present].slice(-30),
+      future: state.future.slice(1), dragging: false };
+  }
+  const next = action.change(state.present);
+  if (next === state.present) return state;
+  return { present: next, past: action.drag && state.dragging ? state.past : [...state.past, state.present].slice(-30),
+    future: [], dragging: !!action.drag };
+}
 
 let uid = 10000;
 const nid = () => 'e' + uid++;
@@ -43,27 +71,13 @@ function readScreenPpi(): number {
   }
 }
 
-// 侧栏折叠把手：一条窄竖条，点击收起/展开对应侧栏
-function Rail({ side, onClick, children }: { side: 'left' | 'right'; onClick: () => void; children: string }) {
-  return (
-    <div
-      onClick={onClick}
-      title={side === 'left' ? '收起左侧栏' : '收起右侧栏'}
-      style={{
-        width: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: '#fff', color: '#667085', fontSize: 12, userSelect: 'none', flex: '0 0 auto',
-        ...(side === 'left' ? { borderRight: '1px solid #e4e7ec' } : { borderLeft: '1px solid #e4e7ec' }),
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
 export default function App() {
-  const [label, setLabel] = useState<LabelSettings>(DEFAULT_LABEL);
+  const [history, dispatch] = useReducer(historyReducer, undefined, (): History => ({
+    present: { label: DEFAULT_LABEL, elements: DEFAULT_ELEMENTS, variables: loadVariables() },
+    past: [], future: [], dragging: false,
+  }));
+  const { label, elements, variables } = history.present;
   const [printerOffset, setPrinterOffset] = useState<PrinterOffset>(readPrinterOffset);
-  const [elements, setElements] = useState<LabelElement[]>(DEFAULT_ELEMENTS);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   // 已校准的屏幕 PPI（0=未校准）；zoom 初始取 1:1 倍率，未校准则用默认 4px/mm
   const [screenPpi, setScreenPpi] = useState<number>(() => readScreenPpi());
@@ -74,13 +88,65 @@ export default function App() {
   const [labelInfoOpen, setLabelInfoOpen] = useState(true);
   const [printerSettingsOpen, setPrinterSettingsOpen] = useState(false);
   const [elPropsOpen, setElPropsOpen] = useState(true);
+  const [variablesOpen, setVariablesOpen] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
+  const [compactToolbar, setCompactToolbar] = useState(() => window.matchMedia('(max-width: 799px)').matches);
+  const [toolbarOpen, setToolbarOpen] = useState(false);
+  const toolbarMenuRef = useRef<HTMLDetailsElement>(null);
+  const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const [viewMenuPosition, setViewMenuPosition] = useState({ top: 0, left: 0 });
+  const viewButtonRef = useRef<HTMLButtonElement>(null);
+  const viewMenuRef = useRef<HTMLDivElement>(null);
+  const viewMenuId = useId();
   const [showRuler, setShowRuler] = useState(true);
 
   useEffect(() => {
     try { localStorage.setItem(PRINTER_OFFSET_KEY, JSON.stringify(printerOffset)); } catch { /* 无法使用存储时仍可在本次会话调整 */ }
   }, [printerOffset]);
+
+  useEffect(() => { saveVariables(variables); }, [variables]);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 799px)');
+    const update = () => { setCompactToolbar(media.matches); setToolbarOpen(false); };
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    if (!compactToolbar || !toolbarOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!toolbarMenuRef.current?.contains(event.target as Node)) setToolbarOpen(false);
+    };
+    const closeEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setToolbarOpen(false); toolbarMenuRef.current?.querySelector('summary')?.focus(); }
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeEscape);
+    return () => { document.removeEventListener('pointerdown', closeOutside); document.removeEventListener('keydown', closeEscape); };
+  }, [compactToolbar, toolbarOpen]);
+  useEffect(() => {
+    if (!viewMenuOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!viewButtonRef.current?.contains(event.target as Node) && !viewMenuRef.current?.contains(event.target as Node)) setViewMenuOpen(false);
+    };
+    const closeEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setViewMenuOpen(false); viewButtonRef.current?.focus(); }
+    };
+    const closeOnScroll = (event: Event) => {
+      if (!viewMenuRef.current?.contains(event.target as Node)) setViewMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeEscape);
+    document.addEventListener('scroll', closeOnScroll, true);
+    window.addEventListener('resize', closeOnScroll);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeEscape);
+      document.removeEventListener('scroll', closeOnScroll, true);
+      window.removeEventListener('resize', closeOnScroll);
+    };
+  }, [viewMenuOpen]);
 
   // 应用屏幕校准：反推的 PPI → 1:1 倍率，并持久化
   const applyCalibration = (ppi: number) => {
@@ -101,14 +167,33 @@ export default function App() {
 
   const selEl = selectedIds.length === 1 ? elements.find((e) => e.id === selectedIds[0]) ?? null : null;
   const tsp = generateTSPL(label, elements);
+  const previewElements = elements.map((el) => previewElement(el, variables));
 
   const updateEl = (id: string, patch: Partial<LabelElement>) =>
-    setElements((els) => els.map((e) => (e.id === id ? ({ ...e, ...patch } as LabelElement) : e)));
+    dispatch({ type: 'edit', change: (doc) => ({ ...doc, elements: doc.elements.map((e) => (e.id === id ? ({ ...e, ...patch } as LabelElement) : e)) }) });
 
-  const removeEl = (id: string) => {
-    setElements((els) => els.filter((e) => e.id !== id));
-    setSelectedIds((ids) => ids.filter((x) => x !== id));
+  const removeSelected = () => {
+    if (!selectedIds.length) return;
+    const ids = new Set(selectedIds);
+    dispatch({ type: 'edit', change: (doc) => {
+      const remaining = doc.elements.filter((e) => !ids.has(e.id));
+      return remaining.length === doc.elements.length ? doc : { ...doc, elements: remaining };
+    } });
+    setSelectedIds([]);
   };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.key !== 'Delete' && event.key !== 'Backspace') || event.defaultPrevented || event.isComposing ||
+          event.metaKey || event.ctrlKey || event.altKey || !selectedIds.length || showTSPL || showImport || showCalibrate) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest('input, textarea, select, [contenteditable]')) return;
+      event.preventDefault();
+      removeSelected();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [selectedIds, showTSPL, showImport, showCalibrate]);
 
   const duplicateEl = (id: string) => {
     const src = elements.find((e) => e.id === id);
@@ -116,11 +201,10 @@ export default function App() {
     // 复制后向右下偏移 2mm（换算为点），与元素点存储一致
     const off = mm2d(2, label.dpi);
     const copy = { ...src, id: nid(), x: src.x + off, y: src.y + off } as LabelElement;
-    setElements((els) => {
-      const i = els.findIndex((e) => e.id === id);
-      return [...els.slice(0, i + 1), copy, ...els.slice(i + 1)];
-    });
-    setSelectedIds([copy.id]);
+    dispatch({ type: 'edit', change: (doc) => {
+      const i = doc.elements.findIndex((e) => e.id === id);
+      return { ...doc, elements: [...doc.elements.slice(0, i + 1), copy, ...doc.elements.slice(i + 1)] };
+    } });
   };
 
   const addElement = (type: LabelElement['type']) => {
@@ -144,7 +228,7 @@ export default function App() {
       case 'diagonal': el = { ...base, type, width: d(16), height: d(10), thickness: d(0.3), rotation: 0 }; break;
       case 'image': el = { ...base, type, fileName: 'LOGO.BMP', width: d(20), height: d(20), format: 'BMP', rotation: 0 }; break;
     }
-    setElements((els) => [...els, el]);
+    dispatch({ type: 'edit', change: (doc) => ({ ...doc, elements: [...doc.elements, el] }) });
     setSelectedIds([el.id]);
   };
 
@@ -152,8 +236,7 @@ export default function App() {
   const applyTSP = (text: string) => {
     if (!text.trim()) return;
     const r = parseTSPL(text, label.dpi);
-    setLabel(r.label);
-    setElements(r.elements);
+    dispatch({ type: 'edit', change: (doc) => ({ ...doc, label: r.label, elements: r.elements }) });
     setSelectedIds([]);
     // eslint-disable-next-line no-console
     if (r.errors.length) console.warn('TSPL 应用提示：', r.errors);
@@ -168,7 +251,7 @@ export default function App() {
   const alignSelected = (mode: AlignMode) => {
     if (selectedIds.length < 2) return;
     const sel = elements.filter((e) => selectedIds.includes(e.id));
-    const boxes = sel.map((e) => ({ e, b: getBox(e, label.dpi) }));
+    const boxes = sel.map((e) => ({ e, b: getBox(previewElement(e, variables), label.dpi) }));
     const minX = Math.min(...boxes.map(({ e }) => e.x));
     const minY = Math.min(...boxes.map(({ e }) => e.y));
     const maxX = Math.max(...boxes.map(({ e, b }) => e.x + b.w));
@@ -187,47 +270,111 @@ export default function App() {
       }
       target.set(e.id, { x: fmt(x), y: fmt(y) });
     }
-    setElements((els) => els.map((e) => {
-      const p = target.get(e.id);
-      return p ? ({ ...e, x: p.x, y: p.y } as LabelElement) : e;
-    }));
+    dispatch({ type: 'edit', change: (doc) => {
+      let changed = false;
+      const aligned = doc.elements.map((e) => {
+        const p = target.get(e.id);
+        if (!p || (p.x === e.x && p.y === e.y)) return e;
+        changed = true;
+        return { ...e, x: p.x, y: p.y } as LabelElement;
+      });
+      return changed ? { ...doc, elements: aligned } : doc;
+    } });
   };
+
+  const editingTools = (
+    <div className="toolbar-editing">
+      <button type="button" title="撤销" aria-label="撤销" disabled={!history.past.length} style={{ ...iconBtnStyle, opacity: history.past.length ? 1 : 0.4 }} onClick={() => { dispatch({ type: 'undo' }); setSelectedIds([]); }}><Undo2 size={16} strokeWidth={1.8} /></button>
+      <button type="button" title="重做" aria-label="重做" disabled={!history.future.length} style={{ ...iconBtnStyle, opacity: history.future.length ? 1 : 0.4 }} onClick={() => { dispatch({ type: 'redo' }); setSelectedIds([]); }}><Redo2 size={16} strokeWidth={1.8} /></button>
+      <span className="toolbar-divider" />
+      <button title="缩小" style={iconBtnStyle} onClick={() => setZoom((z) => Math.max(1, z - 0.5))}>−</button>
+      <span style={{ fontSize: 12, color: '#667085', minWidth: 78 }}>{zoom.toFixed(2)} px/mm</span>
+      <button title="放大" style={iconBtnStyle} onClick={() => setZoom((z) => z + 0.5)}>＋</button>
+      <button title="校准" style={iconBtnStyle} onClick={() => setShowCalibrate(true)}>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+          <circle cx="8" cy="8" r="4.5" />
+          <line x1="12.2" y1="12.2" x2="15" y2="15" />
+        </svg>
+      </button>
+      <span className="toolbar-divider" />
+      <AlignToolbar disabled={selectedIds.length < 2} onAlign={alignSelected} />
+      <span className="toolbar-divider" />
+      <button type="button" title={showRuler ? '关闭标尺' : '开启标尺'} aria-label={showRuler ? '关闭标尺' : '开启标尺'} aria-pressed={showRuler} style={iconBtnStyle} onClick={() => setShowRuler((v) => !v)}>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+          <rect x="2.5" y="2.5" width="11" height="11" />
+          <line x1="6" y1="2.5" x2="6" y2="6.5" />
+          <line x1="9.5" y1="2.5" x2="9.5" y2="5" />
+          <line x1="2.5" y1="6" x2="6.5" y2="6" />
+          <line x1="2.5" y1="9.5" x2="5" y2="9.5" />
+          {!showRuler && <line x1="1" y1="15" x2="15" y2="1" strokeWidth="2" />}
+        </svg>
+      </button>
+    </div>
+  );
+  const viewMode = leftOpen && rightOpen ? 'both' : leftOpen ? 'left' : 'right';
+  const viewLabel = viewMode === 'both' ? '双侧面板' : viewMode === 'left' ? '仅左侧面板' : '仅右侧面板';
+  const chooseView = (mode: 'both' | 'left' | 'right') => {
+    setLeftOpen(mode !== 'right');
+    setRightOpen(mode !== 'left');
+    setViewMenuOpen(false);
+    setToolbarOpen(false);
+    viewButtonRef.current?.focus();
+  };
+  const toggleViewMenu = () => {
+    if (viewMenuOpen) { setViewMenuOpen(false); return; }
+    const rect = viewButtonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const menuHeight = 116;
+    setViewMenuPosition({ top: window.innerHeight - rect.bottom < menuHeight && rect.top > menuHeight ? rect.top - menuHeight - 4 : rect.bottom + 4,
+      left: Math.max(4, Math.min(rect.right - 160, window.innerWidth - 164)) });
+    setViewMenuOpen(true);
+  };
+
+  const documentActions = (
+    <div className="toolbar-actions">
+      <button type="button" title="新建空白" aria-label="新建空白" style={iconBtnStyle} onClick={() => {
+        dispatch({ type: 'edit', change: (doc) => doc.elements.length || doc.label !== DEFAULT_LABEL
+          ? { ...doc, label: DEFAULT_LABEL, elements: [] } : doc });
+        setSelectedIds([]);
+      }}><FilePlus2 size={16} strokeWidth={1.8} /></button>
+      <button type="button" title="导入 TSPL" aria-label="导入 TSPL" style={iconBtnStyle} onClick={() => setShowImport(true)}><FileInput size={16} strokeWidth={1.8} /></button>
+      <button type="button" title="查看 / 复制 TSPL" aria-label="查看 / 复制 TSPL" style={iconBtnStyle} onClick={() => setShowTSPL(true)}><CodeXml size={16} strokeWidth={1.8} /></button>
+      <span className="toolbar-divider" />
+      <button ref={viewButtonRef} type="button" title={`选择视图，当前${viewLabel}`} aria-label={`选择视图，当前${viewLabel}`}
+        aria-haspopup="menu" aria-expanded={viewMenuOpen} aria-controls={viewMenuOpen ? viewMenuId : undefined}
+        style={iconBtnStyle} onClick={toggleViewMenu}>
+        {viewMode === 'left' ? <PanelLeft size={16} strokeWidth={1.8} /> : viewMode === 'right' ? <PanelRight size={16} strokeWidth={1.8} /> : <Columns3 size={16} strokeWidth={1.8} />}
+      </button>
+    </div>
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f5f6f8', color: '#1d2939' }}>
       {/* 顶栏 */}
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: '#fff', borderBottom: '1px solid #e4e7ec' }}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>
-          TSPL 标签设计器
-        </div>
-        {/* 缩放 + 对齐工具栏：合并为一组，居中 */}
-        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button title="缩小" style={iconBtnStyle} onClick={() => setZoom((z) => Math.max(1, z - 0.5))}>−</button>
-          <span style={{ fontSize: 12, color: '#667085', minWidth: 92 }}>缩放 {zoom.toFixed(2)}px/mm</span>
-          <button title="放大" style={iconBtnStyle} onClick={() => setZoom((z) => z + 0.5)}>＋</button>
-          <button title="校准" style={iconBtnStyle} onClick={() => setShowCalibrate(true)}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <circle cx="8" cy="8" r="4.5" />
-              <line x1="12.2" y1="12.2" x2="15" y2="15" />
-            </svg>
-          </button>
-          <span style={{ width: 1, height: 20, background: '#e4e7ec' }} />
-          <AlignToolbar disabled={selectedIds.length < 2} onAlign={alignSelected} />
-          <span style={{ width: 1, height: 20, background: '#e4e7ec' }} />
-          <button title="标尺" style={iconBtnStyle} onClick={() => setShowRuler((v) => !v)}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <rect x="2.5" y="2.5" width="11" height="11" />
-              <line x1="6" y1="2.5" x2="6" y2="6.5" />
-              <line x1="9.5" y1="2.5" x2="9.5" y2="5" />
-              <line x1="2.5" y1="6" x2="6.5" y2="6" />
-              <line x1="2.5" y1="9.5" x2="5" y2="9.5" />
-            </svg>
-          </button>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button style={btnStyle} onClick={() => setShowImport(true)}>导入 TSPL</button>
-          <button style={btnStyle} onClick={() => setShowTSPL(true)}>查看 / 复制 TSPL</button>
-        </div>
+      <div className="app-toolbar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap' }}><img src="favicon.svg" width={24} height={24} alt="" />TSPL 标签设计器</div>
+        {compactToolbar ? (
+          <details ref={toolbarMenuRef} className="toolbar-menu" open={toolbarOpen} onToggle={(event) => setToolbarOpen(event.currentTarget.open)}>
+            <summary aria-label="展开工具栏" title="展开工具栏"><Menu size={18} /> 操作</summary>
+            <div className="toolbar-menu-content" onClick={(event) => {
+              if ((event.target as HTMLElement).closest('.toolbar-actions button:not([aria-haspopup="menu"])')) setToolbarOpen(false);
+            }}>
+              {editingTools}
+              {documentActions}
+            </div>
+          </details>
+        ) : (
+          <>
+            {editingTools}
+            {documentActions}
+          </>
+        )}
+      {viewMenuOpen && createPortal(
+        <div ref={viewMenuRef} id={viewMenuId} role="menu" aria-label="选择视图" className="view-menu" style={viewMenuPosition}>
+          {([['both', '双侧面板', Columns3], ['left', '仅左侧面板', PanelLeft], ['right', '仅右侧面板', PanelRight]] as const).map(([mode, name, Icon]) =>
+            <button key={mode} type="button" role="menuitemradio" aria-checked={viewMode === mode}
+              onClick={() => chooseView(mode)}><Icon size={16} strokeWidth={1.8} />{name}</button>)}
+        </div>, document.body)}
       </div>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -235,27 +382,32 @@ export default function App() {
           <ElementLibrary
             elements={elements}
             selectedIds={selectedIds}
-            onSelect={(id) => setSelectedIds([id])}
+            onSelect={setSelectedIds}
             onAdd={addElement}
           />
         )}
-        <Rail side="left" onClick={() => setLeftOpen((o) => !o)}>{leftOpen ? '◀' : '▶'}</Rail>
         <Canvas
           label={label}
           printerOffset={printerOffset}
-          elements={elements}
+          elements={previewElements}
           selectedIds={selectedIds}
           zoom={zoom}
+          onZoomChange={setZoom}
           showRuler={showRuler}
           onSelect={setSelectedIds}
-          onMove={(updates) =>
-            setElements((els) => els.map((e) => {
-              const u = updates.find((x) => x.id === e.id);
-              return u ? ({ ...e, x: u.x, y: u.y } as LabelElement) : e;
-            }))
-          }
+          onMove={(updates) => dispatch({ type: 'edit', drag: true, change: (doc) => {
+            const positions = new Map(updates.map(({ id, x, y }) => [id, { x, y }]));
+            let changed = false;
+            const moved = doc.elements.map((e) => {
+              const p = positions.get(e.id);
+              if (!p || (p.x === e.x && p.y === e.y)) return e;
+              changed = true;
+              return { ...e, x: p.x, y: p.y } as LabelElement;
+            });
+            return changed ? { ...doc, elements: moved } : doc;
+          } })}
+          onMoveEnd={() => dispatch({ type: 'endDrag' })}
         />
-        <Rail side="right" onClick={() => setRightOpen((o) => !o)}>{rightOpen ? '▶' : '◀'}</Rail>
         {/* 右栏 */}
         {rightOpen && (
           <div style={{ width: 280, background: '#fff', borderLeft: '1px solid #e4e7ec', padding: 14, overflowY: 'auto' }}>
@@ -266,17 +418,23 @@ export default function App() {
               printerOpen={printerSettingsOpen}
               onToggle={() => setLabelInfoOpen((o) => !o)}
               onPrinterToggle={() => setPrinterSettingsOpen((o) => !o)}
-              onChange={(patch) => setLabel((l) => ({ ...l, ...patch }))}
+              onChange={(patch) => dispatch({ type: 'edit', change: (doc) => ({ ...doc, label: { ...doc.label, ...patch } }) })}
               onPrinterOffsetChange={(patch) => setPrinterOffset((offset) => ({ ...offset, ...patch }))}
             />
+            <VariablePanel variables={variables} open={variablesOpen} onToggle={() => setVariablesOpen((o) => !o)}
+              onChange={(next, rename) => dispatch({ type: 'edit', change: (doc) => ({ ...doc, variables: next,
+                elements: rename ? doc.elements.map((el) => 'content' in el && el.content.includes(rename[0])
+                  ? { ...el, content: el.content.split(rename[0]).join(rename[1]) } : el) : doc.elements,
+              }) })} />
             <ElementPropsPanel
               el={selEl}
+              variables={variables}
               selectedCount={selectedIds.length}
               open={elPropsOpen}
               onToggle={() => setElPropsOpen((o) => !o)}
               onChange={(patch) => selEl && updateEl(selEl.id, patch)}
               onDuplicate={() => selEl && duplicateEl(selEl.id)}
-              onDelete={() => selEl && removeEl(selEl.id)}
+              onDelete={removeSelected}
             />
           </div>
         )}

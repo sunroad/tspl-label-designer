@@ -21,7 +21,7 @@ export const DEFAULT_ELEMENTS: LabelElement[] = [
     humanReadable: 1, rotation: 0, narrow: 2, wide: 3, content: '6901234567890',
   },
   {
-    id: 'e3', type: 'qrcode', x: mm2d(30, DPI), y: mm2d(4, DPI), ecc: 'M', cellWidth: 4,
+    id: 'e3', type: 'qrcode', x: mm2d(35, DPI), y: mm2d(4, DPI), ecc: 'M', cellWidth: 4,
     rotation: 0, content: 'https://example.com',
   },
   {

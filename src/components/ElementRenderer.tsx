@@ -4,7 +4,7 @@ import { getBox } from '../lib/tspl';
 import { DOT_FONTS, charDotSize, isCJK, isCJKDotFont } from '../lib/fonts';
 import { dotMatrix } from '../lib/asciiDot';
 import { d2mm as baseD2mm } from '../lib/units';
-import { barcodeBars, qrBlackCells, matrixBlackCells } from './preview';
+import { symbolImage } from './preview';
 
 interface Props {
   el: LabelElement;
@@ -15,6 +15,22 @@ interface Props {
   onPointerMove: (e: React.PointerEvent) => void;
   onPointerUp: (e: React.PointerEvent) => void;
   onPointerCancel?: (e: React.PointerEvent) => void;
+}
+
+type CodeElement = Extract<LabelElement, { type: 'barcode' | 'qrcode' | 'barcode2d' }>;
+
+function EncodedSymbol({ el, width, height }: { el: CodeElement; width: number; height: number }) {
+  const codeType = el.type === 'qrcode' ? '' : el.codeType;
+  const ecc = el.type === 'qrcode' ? el.ecc : '';
+  const href = React.useMemo(() => symbolImage(el), [el.type, el.content, codeType, ecc]);
+  return href
+    ? <g>
+        {el.type !== 'barcode' && <rect x={0} y={0} width={width} height={height} fill="#fff" />}
+        <image href={href} x={0} y={0} width={width} height={height}
+          preserveAspectRatio={el.type === 'barcode' ? 'none' : 'xMidYMid meet'} />
+      </g>
+    : <text x={width / 2} y={height / 2} textAnchor="middle" dominantBaseline="middle"
+        style={{ fontSize: Math.min(12, height / 3), fill: '#b42318' }}>数据无效</text>;
 }
 
 export default function ElementRenderer({
@@ -96,26 +112,17 @@ export default function ElementRenderer({
   } else if (el.type === 'barcode') {
     inner = (
       <g>
-        {barcodeBars(el.content, wp).map(([x, bw], i) => (
-          <rect key={i} x={x} y={0} width={bw} height={hp} fill="#111" />
-        ))}
+        <EncodedSymbol el={el} width={wp} height={hp} />
         {el.humanReadable === 1 && (
-          <text x={wp / 2} y={hp + 10} textAnchor="middle"
-            style={{ fontSize: 9, fill: '#111', fontFamily: 'monospace' }}>
+          <text x={wp / 2} y={hp + 2.5 * zoom} textAnchor="middle"
+            style={{ fontSize: 2.25 * zoom, fill: '#111', fontFamily: 'monospace' }}>
             {el.content}
           </text>
         )}
       </g>
     );
   } else if (el.type === 'qrcode') {
-    const cell = wp / 21;
-    inner = (
-      <g>
-        {qrBlackCells(el.content, 21).map(([r, c], i) => (
-          <rect key={i} x={c * cell} y={r * cell} width={cell} height={cell} fill="#111" />
-        ))}
-      </g>
-    );
+    inner = <EncodedSymbol el={el} width={wp} height={hp} />;
   } else if (el.type === 'line') {
     inner = <rect x={0} y={0} width={wp} height={Math.max(hp, 1)} fill="#111" />;
   } else if (el.type === 'box') {
@@ -168,17 +175,7 @@ export default function ElementRenderer({
       </g>
     );
   } else if (el.type === 'barcode2d') {
-    // 二维条码示意：PDF417 偏宽，其余为方形点阵
-    const cols = el.codeType === 'PDF417' ? 24 : 16;
-    const rows = el.codeType === 'PDF417' ? 12 : 16;
-    const cw = wp / cols, ch = hp / rows;
-    inner = (
-      <g>
-        {matrixBlackCells(el.content, cols, rows).map(([r, c], i) => (
-          <rect key={i} x={c * cw} y={r * ch} width={cw} height={ch} fill="#111" />
-        ))}
-      </g>
-    );
+    inner = <EncodedSymbol el={el} width={wp} height={hp} />;
   }
 
   return (

@@ -6,7 +6,7 @@ import ElementIcon from './ElementIcon';
 interface Props {
   elements: LabelElement[];
   selectedIds: string[];
-  onSelect: (id: string) => void;
+  onSelect: (ids: string[]) => void;
   onAdd: (type: LabelElement['type']) => void;
 }
 
@@ -46,30 +46,31 @@ export default function ElementLibrary({ elements, selectedIds, onSelect, onAdd 
   return (
     <div style={{ width: 220, background: '#fff', borderRight: '1px solid #e4e7ec', padding: 12, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {/* 添加元素：九宫格排布，可折叠 */}
-      <div style={{ flex: 'none' }}>
+      <div className="section-group section-group--flex" style={{ flex: addOpen ? 1 : 'none' }}>
         <SectionHeader title="添加元素" open={addOpen} onToggle={() => setAddOpen((o) => !o)} />
-      </div>
-      {addOpen && (
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+        {addOpen && (
+          <div className="section-content" style={{ flex: 1, padding: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
             {ADD_ITEMS.map(({ type, label }) => (
               <button key={type} style={gridBtnStyle} onClick={() => onAdd(type)}>
                 <span style={{ color: '#475467', lineHeight: 0 }}><ElementIcon type={type} /></span>
                 <span style={{ fontSize: 11, marginTop: 5 }}>{label}</span>
               </button>
             ))}
+            </div>
           </div>
-        </div>
-      )}
-      {/* 元素列表：可折叠，与添加元素平分空间 */}
-      <div style={{ flex: 'none' }}>
-        <SectionHeader title="元素列表" open={listOpen} onToggle={() => setListOpen((o) => !o)} style={{ marginTop: 14 }} />
+        )}
       </div>
-      {listOpen && (
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-          {elements.length === 0 && <div style={{ fontSize: 12, color: '#98a2b3' }}>（空）</div>}
+      {/* 元素列表：可折叠，与添加元素平分空间 */}
+      <div className="section-group section-group--flex" style={{ flex: listOpen ? 1 : 'none' }}>
+        <SectionHeader title="元素列表" open={listOpen} onToggle={() => setListOpen((o) => !o)} />
+        {listOpen && (
+          <div className="section-content" style={{ flex: 1, padding: 8 }}>
+            {elements.length === 0 && <div style={{ fontSize: 12, color: '#98a2b3' }}>（空）</div>}
           {elements.map((e) => (
-            <div key={e.id} onClick={() => onSelect(e.id)}
+            <div key={e.id} onClick={(event) => onSelect(event.metaKey || event.ctrlKey
+              ? (selectedIds.includes(e.id) ? selectedIds.filter((id) => id !== e.id) : [...selectedIds, e.id])
+              : [e.id])}
               style={{
                 display: 'flex', alignItems: 'center',
                 padding: '5px 8px', borderRadius: 6, marginBottom: 4, fontSize: 12, cursor: 'pointer',
@@ -79,14 +80,17 @@ export default function ElementLibrary({ elements, selectedIds, onSelect, onAdd 
               <span style={{ display: 'flex', flex: 'none', marginRight: 6, color: '#475467' }}>
                 <ElementIcon type={e.type} size={14} />
               </span>
-              <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
-                {TYPE_LABEL[e.type]}
-                {'content' in e && <span style={{ color: '#98a2b3', marginLeft: 6 }}>{e.content}</span>}
-              </span>
+              <span style={{ flex: 'none', whiteSpace: 'nowrap' }}>{TYPE_LABEL[e.type]}</span>
+              {'content' in e && (
+                <span title={e.content} style={{ minWidth: 0, marginLeft: 6, color: '#98a2b3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {e.content}
+                </span>
+              )}
             </div>
           ))}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

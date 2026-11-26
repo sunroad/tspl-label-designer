@@ -14,3 +14,220 @@ body {
   color: #1d2939;
   background: #f5f6f8;
 }
+
+.section-group {
+  border: 1px solid #d9e5ff;
+  border-radius: 7px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.section-group + .section-group {
+  margin-top: 12px;
+}
+
+.section-content {
+  padding: 10px 12px 2px;
+}
+
+.section-content > :last-child {
+  margin-bottom: 0;
+}
+
+.variable-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 12px;
+  color: #1d2939;
+  text-align: left;
+}
+
+.variable-table th,
+.variable-table td {
+  border: 1px solid #d0d5dd;
+  padding: 6px 5px;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+
+.variable-table th {
+  background: #eef2ff;
+  font-weight: 600;
+}
+
+.variable-table tbody tr[tabindex] {
+  cursor: pointer;
+}
+
+.variable-table tbody tr[tabindex]:not([aria-selected="true"]):hover td {
+  background: #f4f7ff;
+}
+
+.variable-table tbody tr[aria-selected="true"] td {
+  background: #f2f4f7;
+}
+
+.variable-table tbody tr:focus-visible {
+  outline: 2px solid #3668d9;
+  outline-offset: -2px;
+}
+
+.variable-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.section-header {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px 7px 12px;
+  border: 0;
+  border-radius: 0;
+  background: #edf3ff;
+  color: #244477;
+  font: 700 13px/1.4 -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+
+.section-group--flex {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.section-group--flex .section-content {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.section-header:hover {
+  background: #e2ecff;
+}
+
+.section-header:focus-visible {
+  outline: 2px solid #3668d9;
+  outline-offset: 2px;
+}
+
+.section-header-chevron {
+  color: #3668d9;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.app-toolbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  min-height: 47px;
+  padding: 10px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e4e7ec;
+}
+
+.toolbar-editing,
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-toolbar > .toolbar-editing {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.toolbar-editing > button,
+.toolbar-actions > button {
+  flex-shrink: 0;
+}
+
+.toolbar-divider {
+  flex: 0 0 1px;
+  height: 20px;
+  background: #e4e7ec;
+}
+
+.toolbar-menu {
+  position: relative;
+}
+
+.toolbar-menu summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  list-style: none;
+}
+
+.toolbar-menu summary::-webkit-details-marker { display: none; }
+.toolbar-menu summary:focus-visible { outline: 2px solid #3668d9; outline-offset: 2px; }
+
+.toolbar-menu-content {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(500px, calc(100vw - 24px));
+  max-height: calc(100vh - 70px);
+  overflow-y: auto;
+  padding: 14px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px #10182826;
+}
+
+.toolbar-menu-content .toolbar-editing { flex-wrap: wrap; }
+.toolbar-menu-content .toolbar-actions { flex-wrap: wrap; }
+
+
+.view-menu {
+  position: fixed;
+  z-index: 100;
+  width: 160px;
+  padding: 4px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 4px 12px #10182824;
+}
+
+.view-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #1d2939;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.view-menu button:hover,
+.view-menu button:focus-visible,
+.view-menu button[aria-checked="true"] { background: #edf3ff; }
+
+@media (max-width: 450px) {
+  .toolbar-menu-content .toolbar-divider { display: none; }
+  .toolbar-menu-content .toolbar-editing { column-gap: 6px; row-gap: 10px; }
+}

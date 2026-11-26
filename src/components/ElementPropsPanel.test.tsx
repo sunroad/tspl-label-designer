@@ -13,5 +13,6 @@ it('为导入且未保存的字体显示当前选项', () => {
       onDuplicate={() => {}} onDelete={() => {}} />,
   );
 
-  expect(html).toContain('<option value="MYFONT" selected="">');
+  expect(html).toContain('MYFONT (导入)');
+  expect(html).toContain('aria-haspopup="listbox"');
 });

@@ -20,8 +20,10 @@ interface Props {
   selectedIds: string[];
   zoom: number;
   showRuler: boolean;
+  onZoomChange: (zoom: number) => void;
   onSelect: (ids: string[]) => void;
   onMove: (updates: MoveUpdate[]) => void;
+  onMoveEnd: () => void;
 }
 
 /** 吸附阈值：约 6 屏幕像素对应的点(dot)数 */
@@ -38,8 +40,20 @@ function labelCanvasRect(label: LabelSettings): Rect {
 }
 
 export default function Canvas({
-  label, printerOffset, elements, selectedIds, zoom, showRuler, onSelect, onMove,
+  label, printerOffset, elements, selectedIds, zoom, showRuler, onSelect, onMove, onMoveEnd, onZoomChange,
 }: Props) {
+  const viewportRef = React.useRef<HTMLDivElement>(null);
+  const footerRef = React.useRef<HTMLDivElement>(null);
+  const fitToView = () => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const availableWidth = viewport.clientWidth - 40 - 48 - (showRuler ? 48 : 0);
+    const availableHeight = viewport.clientHeight - 40 - 48 - (showRuler ? 40 : 0)
+      - (footerRef.current?.offsetHeight ?? 0) - 8;
+    if (availableWidth > 0 && availableHeight > 0) {
+      onZoomChange(Math.min(availableWidth / label.width, availableHeight / label.height));
+    }
+  };
   const dragRef = React.useRef<{ ids: string[]; origins: Map<string, { x: number; y: number }>; px: number; py: number } | null>(null);
   const [guides, setGuides] = React.useState<Guide[]>([]);
 
@@ -110,6 +124,7 @@ export default function Canvas({
   const endDrag = (e: React.PointerEvent) => {
     if (!dragRef.current) return;
     try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch {}
+    onMoveEnd();
     dragRef.current = null;
     setGuides([]);
   };
@@ -153,7 +168,17 @@ export default function Canvas({
   );
 
   return (
-    <div style={{ flex: 1, overflow: 'auto', padding: 20, display: 'flex' }}>
+    <div style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative' }}>
+      <button type="button" title="适应画布" aria-label="适应画布" onClick={fitToView}
+        style={{ position: 'absolute', top: 8, right: 8, zIndex: 1, width: 30, height: 30,
+          display: 'grid', placeItems: 'center', border: '1px solid #d0d5dd', borderRadius: 6,
+          background: '#fff', color: '#475467', cursor: 'pointer' }}>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+          <path d="M6 2H2v4m8-4h4v4M2 10v4h4m8-4v4h-4" />
+          <path d="M6 6 2 2m8 4 4-4M6 10l-4 4m8-4 4 4" />
+        </svg>
+      </button>
+      <div ref={viewportRef} style={{ width: '100%', height: '100%', overflow: 'auto', padding: 20, display: 'flex' }}>
       <div style={{ margin: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {/* 灰色衬底包住整个 3×3 栅格：四角占位，四周标尺，中央画布；标尺与画布边缘精确对齐 */}
         <div style={{ background: '#dfe3ea', padding: 24, borderRadius: 8, boxShadow: 'inset 0 1px 4px rgba(0,0,0,.08)' }}>
@@ -182,10 +207,11 @@ export default function Canvas({
             </svg>
           )}
         </div>
-        <div style={{ fontSize: 11, color: '#98a2b3', marginTop: 8 }}>
+        <div ref={footerRef} style={{ fontSize: 11, color: '#98a2b3', marginTop: 8 }}>
           {fmt(label.width)} × {fmt(label.height)} mm · {label.dpi} DPI = {mm2d(label.width, label.dpi)} × {mm2d(label.height, label.dpi)} 点
         </div>
       </div>
+    </div>
     </div>
   );
 }
