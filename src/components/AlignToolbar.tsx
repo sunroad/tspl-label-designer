@@ -135,7 +135,7 @@ export default function AlignToolbar({ disabled, selectedCount, onAlign }: Props
   };
 
   return <>
-    <button ref={trigger} type="button" title="对齐与分散" aria-label="对齐与分散" aria-haspopup="menu"
+    <button ref={trigger} type="button" aria-label="对齐与分散" aria-haspopup="menu"
       aria-expanded={open} aria-controls={open ? menuId : undefined} disabled={disabled}
       style={{ ...iconBtnStyle, opacity: disabled ? 0.4 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
       onClick={toggle} onKeyDown={(event) => {

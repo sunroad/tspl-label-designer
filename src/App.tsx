@@ -1,6 +1,6 @@
 import { useEffect, useId, useReducer, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Menu, Undo2, Redo2, FilePlus2, FileInput, CodeXml, Columns3, PanelLeft, PanelRight } from 'lucide-react';
+import { Menu, Undo2, Redo2, FilePlus2, FileInput, CodeXml, Columns3, PanelLeft, PanelRight, RulerDimensionLine } from 'lucide-react';
 import type { LabelElement, LabelSettings, PrinterOffset } from './types';
 import { DEFAULT_ELEMENTS, DEFAULT_LABEL } from './defaults';
 import { generateTSPL, getBox } from './lib/tspl';
@@ -351,22 +351,19 @@ export default function App() {
 
   const editingTools = (
     <div className="toolbar-editing">
-      <button type="button" title="撤销" aria-label="撤销" disabled={!history.past.length} style={{ ...iconBtnStyle, opacity: history.past.length ? 1 : 0.4 }} onClick={undo}><Undo2 size={16} strokeWidth={1.8} /></button>
-      <button type="button" title="重做" aria-label="重做" disabled={!history.future.length} style={{ ...iconBtnStyle, opacity: history.future.length ? 1 : 0.4 }} onClick={redo}><Redo2 size={16} strokeWidth={1.8} /></button>
+      <button type="button" aria-label="撤销" disabled={!history.past.length} style={{ ...iconBtnStyle, opacity: history.past.length ? 1 : 0.4 }} onClick={undo}><Undo2 size={16} strokeWidth={1.8} /></button>
+      <button type="button" aria-label="重做" disabled={!history.future.length} style={{ ...iconBtnStyle, opacity: history.future.length ? 1 : 0.4 }} onClick={redo}><Redo2 size={16} strokeWidth={1.8} /></button>
       <span className="toolbar-divider" />
-      <button title="缩小" style={iconBtnStyle} onClick={() => setZoom((z) => Math.max(1, z - 0.5))}>−</button>
-      <span style={{ fontSize: 12, color: '#667085', minWidth: 78 }}>{zoom.toFixed(2)} px/mm</span>
-      <button title="放大" style={iconBtnStyle} onClick={() => setZoom((z) => z + 0.5)}>＋</button>
-      <button title="校准" style={iconBtnStyle} onClick={() => setShowCalibrate(true)}>
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-          <circle cx="8" cy="8" r="4.5" />
-          <line x1="12.2" y1="12.2" x2="15" y2="15" />
-        </svg>
+      <button aria-label="缩小" style={iconBtnStyle} onClick={() => setZoom((z) => Math.max(1, z - 0.5))}>−</button>
+      <span data-tooltip="当前缩放比例（像素/毫米）" style={{ fontSize: 12, color: '#667085', minWidth: 78 }}>{zoom.toFixed(2)} px/mm</span>
+      <button aria-label="放大" style={iconBtnStyle} onClick={() => setZoom((z) => z + 0.5)}>＋</button>
+      <button aria-label="校准屏幕比例" style={iconBtnStyle} onClick={() => setShowCalibrate(true)}>
+        <RulerDimensionLine size={16} strokeWidth={1.8} />
       </button>
       <span className="toolbar-divider" />
       <AlignToolbar disabled={selectedIds.length < 2} selectedCount={selectedIds.length} onAlign={alignSelected} />
       <span className="toolbar-divider" />
-      <button type="button" title={showRuler ? '关闭标尺' : '开启标尺'} aria-label={showRuler ? '关闭标尺' : '开启标尺'} aria-pressed={showRuler} style={iconBtnStyle} onClick={() => setShowRuler((v) => !v)}>
+      <button type="button" aria-label={showRuler ? '关闭标尺' : '开启标尺'} aria-pressed={showRuler} style={iconBtnStyle} onClick={() => setShowRuler((v) => !v)}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
           <rect x="2.5" y="2.5" width="11" height="11" />
           <line x1="6" y1="2.5" x2="6" y2="6.5" />
@@ -399,15 +396,15 @@ export default function App() {
 
   const documentActions = (
     <div className="toolbar-actions">
-      <button type="button" title="新建空白" aria-label="新建空白" style={iconBtnStyle} onClick={() => {
+      <button type="button" aria-label="新建空白" style={iconBtnStyle} onClick={() => {
         dispatch({ type: 'edit', change: (doc) => doc.elements.length || doc.label !== DEFAULT_LABEL
           ? { ...doc, label: DEFAULT_LABEL, elements: [] } : doc });
         setSelectedIds([]);
       }}><FilePlus2 size={16} strokeWidth={1.8} /></button>
-      <button type="button" title="导入 TSPL" aria-label="导入 TSPL" style={iconBtnStyle} onClick={() => setShowImport(true)}><FileInput size={16} strokeWidth={1.8} /></button>
-      <button type="button" title="查看 / 复制 TSPL" aria-label="查看 / 复制 TSPL" style={iconBtnStyle} onClick={() => setShowTSPL(true)}><CodeXml size={16} strokeWidth={1.8} /></button>
+      <button type="button" aria-label="导入 TSPL" style={iconBtnStyle} onClick={() => setShowImport(true)}><FileInput size={16} strokeWidth={1.8} /></button>
+      <button type="button" aria-label="查看 / 复制 TSPL" style={iconBtnStyle} onClick={() => setShowTSPL(true)}><CodeXml size={16} strokeWidth={1.8} /></button>
       <span className="toolbar-divider" />
-      <button ref={viewButtonRef} type="button" title={`选择视图，当前${viewLabel}`} aria-label={`选择视图，当前${viewLabel}`}
+      <button ref={viewButtonRef} type="button" aria-label={`选择视图，当前${viewLabel}`}
         aria-haspopup="menu" aria-expanded={viewMenuOpen} aria-controls={viewMenuOpen ? viewMenuId : undefined}
         style={iconBtnStyle} onClick={toggleViewMenu}>
         {viewMode === 'left' ? <PanelLeft size={16} strokeWidth={1.8} /> : viewMode === 'right' ? <PanelRight size={16} strokeWidth={1.8} /> : <Columns3 size={16} strokeWidth={1.8} />}
@@ -422,7 +419,7 @@ export default function App() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap' }}><img src="favicon.svg" width={24} height={24} alt="" />TSPL 标签设计器</div>
         {compactToolbar ? (
           <details ref={toolbarMenuRef} className="toolbar-menu" open={toolbarOpen} onToggle={(event) => setToolbarOpen(event.currentTarget.open)}>
-            <summary aria-label="展开工具栏" title="展开工具栏"><Menu size={18} /> 操作</summary>
+            <summary aria-label="展开工具栏"><Menu size={18} /> 操作</summary>
             <div className="toolbar-menu-content" onClick={(event) => {
               if ((event.target as HTMLElement).closest('.toolbar-actions button:not([aria-haspopup="menu"])')) setToolbarOpen(false);
             }}>

@@ -150,6 +150,57 @@ body {
   flex-shrink: 0;
 }
 
+.app-toolbar button[aria-label],
+.app-toolbar summary[aria-label],
+.app-toolbar [data-tooltip] {
+  position: relative;
+}
+
+.app-toolbar button[aria-label]::after,
+.app-toolbar summary[aria-label]::after,
+.app-toolbar [data-tooltip]::after {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 220px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  background: #1d2939;
+  color: #fff;
+  box-shadow: 0 2px 8px #10182833;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  pointer-events: none;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease, visibility 120ms ease;
+}
+
+.app-toolbar button[aria-label]::after,
+.app-toolbar summary[aria-label]::after { content: attr(aria-label); }
+.app-toolbar [data-tooltip]::after { content: attr(data-tooltip); }
+
+.app-toolbar button[aria-label]:hover::after,
+.app-toolbar button[aria-label]:focus-visible::after,
+.app-toolbar summary[aria-label]:hover::after,
+.app-toolbar summary[aria-label]:focus-visible::after,
+.app-toolbar [data-tooltip]:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+.toolbar-actions > button:last-child::after,
+.toolbar-menu summary::after {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
 .toolbar-divider {
   flex: 0 0 1px;
   height: 20px;
