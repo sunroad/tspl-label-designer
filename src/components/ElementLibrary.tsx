@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import type { LabelElement } from '../types';
 import { SectionHeader } from './ui';
 import ElementIcon from './ElementIcon';
@@ -35,14 +36,22 @@ const TYPE_LABEL: Record<LabelElement['type'], string> = {
 // 九宫格按钮样式：图标在上、标签在下，竖直居中
 const gridBtnStyle: CSSProperties = {
   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-  padding: '8px 2px', borderRadius: 6, border: '1px solid #d0d5dd',
-  background: '#fff', cursor: 'pointer', color: '#1d2939',
+  padding: '8px 2px', borderRadius: 6, cursor: 'pointer',
 };
 
 export default function ElementLibrary({ elements, selectedIds, onSelect, onAdd }: Props) {
   // 添加元素与元素列表各自可折叠（与右侧属性栏行为一致）
   const [addOpen, setAddOpen] = useState(true);
   const [listOpen, setListOpen] = useState(true);
+  const [tip, setTip] = useState<{ type: LabelElement['type']; top: number; left: number } | null>(null);
+  const showTip = (type: LabelElement['type'], button: HTMLButtonElement) => {
+    const rect = button.getBoundingClientRect();
+    setTip({
+      type,
+      top: rect.bottom + 36 > window.innerHeight ? rect.top - 34 : rect.bottom + 6,
+      left: Math.max(56, Math.min(rect.left + rect.width / 2, window.innerWidth - 56)),
+    });
+  };
   return (
     <div style={{ width: 220, background: '#fff', borderRight: '1px solid #e4e7ec', padding: 12, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {/* 添加元素：九宫格排布，可折叠 */}
@@ -52,7 +61,14 @@ export default function ElementLibrary({ elements, selectedIds, onSelect, onAdd 
           <div className="section-content" style={{ flex: 1, padding: 8 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
             {ADD_ITEMS.map(({ type, label }) => (
-              <button key={type} style={gridBtnStyle} onClick={() => onAdd(type)}>
+              <button key={type} type="button" className="element-add-button" aria-describedby={tip?.type === type ? 'element-add-tooltip' : undefined}
+                style={gridBtnStyle} onPointerEnter={(event) => showTip(type, event.currentTarget)}
+                onPointerLeave={() => setTip(null)} onFocus={(event) => showTip(type, event.currentTarget)}
+                onBlur={() => setTip(null)} onClick={(event) => {
+                  setTip(null);
+                  onAdd(type);
+                  if (event.detail > 0) event.currentTarget.blur();
+                }}>
                 <span style={{ color: '#475467', lineHeight: 0 }}><ElementIcon type={type} /></span>
                 <span style={{ fontSize: 11, marginTop: 5 }}>{label}</span>
               </button>
@@ -91,6 +107,10 @@ export default function ElementLibrary({ elements, selectedIds, onSelect, onAdd 
           </div>
         )}
       </div>
+      {tip && createPortal(
+        <div id="element-add-tooltip" role="tooltip" className="element-add-tooltip" style={{ top: tip.top, left: tip.left }}>
+          点击添加元素
+        </div>, document.body)}
     </div>
   );
 }

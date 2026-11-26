@@ -78,6 +78,37 @@ body {
   cursor: not-allowed;
 }
 
+.element-add-button {
+  border: 1px solid #d0d5dd;
+  background: #fff;
+  color: #1d2939;
+}
+
+.element-add-button:hover {
+  background: #eaf1ff;
+  border-color: #3668d9;
+  color: #244477;
+}
+
+.element-add-button:focus-visible {
+  outline: 2px solid #3668d9;
+  outline-offset: 2px;
+}
+.element-add-tooltip {
+  position: fixed;
+  z-index: 1000;
+  transform: translateX(-50%);
+  padding: 5px 8px;
+  border-radius: 4px;
+  background: #1d2939;
+  color: #fff;
+  box-shadow: 0 2px 8px #10182833;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .section-header {
   display: flex;
   width: 100%;
