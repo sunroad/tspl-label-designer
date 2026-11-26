@@ -18,6 +18,20 @@ interface Props {
 
 type CodeElement = Extract<LabelElement, { type: 'barcode' | 'qrcode' | 'barcode2d' }>;
 
+const inkContext = document.createElement('canvas').getContext('2d')!;
+const inkCache = new Map<string, TextMetrics>();
+
+function inkMetrics(text: string, size: number): TextMetrics {
+  const key = `${size}:${text}`;
+  let metrics = inkCache.get(key);
+  if (!metrics) {
+    inkContext.font = `${size}px monospace`;
+    metrics = inkContext.measureText(text);
+    inkCache.set(key, metrics);
+  }
+  return metrics;
+}
+
 function EncodedSymbol({ el, width, height }: { el: CodeElement; width: number; height: number }) {
   const codeType = el.type === 'qrcode' ? '' : el.codeType;
   const ecc = el.type === 'qrcode' ? el.ecc : '';
@@ -26,7 +40,7 @@ function EncodedSymbol({ el, width, height }: { el: CodeElement; width: number; 
     ? <g>
         {el.type !== 'barcode' && <rect x={0} y={0} width={width} height={height} fill="#fff" />}
         <image href={href} x={0} y={0} width={width} height={height}
-          preserveAspectRatio={el.type === 'barcode' ? 'none' : 'xMidYMid meet'} />
+          preserveAspectRatio="none" />
       </g>
     : <text x={width / 2} y={height / 2} textAnchor="middle" dominantBaseline="middle"
         style={{ fontSize: Math.min(12, height / 3), fill: '#b42318' }}>数据无效</text>;
@@ -52,6 +66,8 @@ export default function ElementRenderer({
       const mixed = !isCJKDotFont(el.font) && chars.some(isCJK) && chars.some((ch) => !isCJK(ch));
       const lineHDots = f[1];
       const dot = d2mm(1) * zoom; // 单点(dot)对应的屏幕像素边长
+      let inkTop = Infinity;
+      let inkBottom = -Infinity;
       let x = 0;
       const cells = chars.map((ch, i) => {
         const size = charDotSize(el.font, ch) ?? f;
@@ -60,8 +76,14 @@ export default function ElementRenderer({
         const chH = d2mm(glyphH) * zoom;
         const yOffDots = Math.max(0, Math.floor((lineHDots - glyphH) / 2));
         const yOff = yOffDots * dot;
+        const metrics = inkMetrics(ch, chH);
+        const baseline = yOff + metrics.fontBoundingBoxAscent;
+        if (metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent > 0) {
+          inkTop = Math.min(inkTop, baseline - metrics.actualBoundingBoxAscent);
+          inkBottom = Math.max(inkBottom, baseline + metrics.actualBoundingBoxDescent);
+        }
         const node = (
-          <text key={i} x={x} y={yOff} dominantBaseline="hanging"
+          <text key={i} x={x} y={baseline}
             textLength={cw} lengthAdjust="spacingAndGlyphs"
             style={{ fontSize: chH, fill: '#111', fontFamily: 'monospace', whiteSpace: 'pre' }}>
             {ch}
@@ -70,17 +92,26 @@ export default function ElementRenderer({
         x += cw;
         return node;
       });
-      // 横向/纵向放大倍数分别作用于宽、高
-      inner = <g transform={`scale(${el.xMult || 1} ${el.yMult || 1})`}>{cells}</g>;
+      // 保留各字符的相对位置，把整行的可见笔画对齐到文本包围盒。
+      const inkScale = inkBottom > inkTop ? hp / (el.yMult || 1) / (inkBottom - inkTop) : 1;
+      const inkOffset = inkBottom > inkTop ? -inkTop * inkScale : 0;
+      inner = <g transform={`scale(${el.xMult || 1} ${el.yMult || 1})`}>
+        <g transform={`translate(0 ${inkOffset}) scale(1 ${inkScale})`}>{cells}</g>
+      </g>;
     } else {
       // 自定义 / TTF：等比字体，字高按 3mm 基准估算（与 getBox 一致）
       const h = 3 * zoom;
+      const metrics = inkMetrics(el.content, h);
+      const inkHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+      const scale = inkHeight > 0 ? h / inkHeight : 1;
       inner = (
         <g transform={`scale(${el.xMult || 1} ${el.yMult || 1})`}>
-          <text x={0} y={0} dominantBaseline="hanging"
-            style={{ fontSize: h, fill: '#111', fontFamily: 'monospace', whiteSpace: 'pre' }}>
-            {el.content}
-          </text>
+          <g transform={`scale(1 ${scale})`}>
+            <text x={0} y={inkHeight > 0 ? metrics.actualBoundingBoxAscent : metrics.fontBoundingBoxAscent}
+              style={{ fontSize: h, fill: '#111', fontFamily: 'monospace', whiteSpace: 'pre' }}>
+              {el.content}
+            </text>
+          </g>
         </g>
       );
     }
@@ -162,7 +193,7 @@ export default function ElementRenderer({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
-      style={{ cursor: 'move' }}
+      style={{ cursor: 'move', userSelect: 'none', WebkitUserSelect: 'none' }}
     >
       {inner}
       {selected && (

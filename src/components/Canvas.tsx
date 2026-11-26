@@ -54,18 +54,69 @@ export default function Canvas({
       onZoomChange(Math.min(availableWidth / label.width, availableHeight / label.height));
     }
   };
-  const dragRef = React.useRef<{ ids: string[]; origins: Map<string, { x: number; y: number }>; px: number; py: number } | null>(null);
+  const dragRef = React.useRef<{ ids: string[]; origins: Map<string, { x: number; y: number }>; px: number; py: number; clickId: string | null; moved: boolean } | null>(null);
+  const marqueeRef = React.useRef<{ pointerId: number; x: number; y: number; initial: string[] } | null>(null);
+  const [marquee, setMarquee] = React.useState<Rect | null>(null);
+
+  const canvasPoint = (e: React.PointerEvent<SVGSVGElement>) => {
+    const bounds = e.currentTarget.getBoundingClientRect();
+    return { x: Math.max(0, Math.min(W, e.clientX - bounds.left)),
+      y: Math.max(0, Math.min(H, e.clientY - bounds.top)) };
+  };
+
+  const onCanvasDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (e.button !== 0 || e.target !== e.currentTarget) return;
+    e.preventDefault();
+    const { x, y } = canvasPoint(e);
+    const additive = e.shiftKey || e.metaKey || e.ctrlKey;
+    marqueeRef.current = { pointerId: e.pointerId, x, y, initial: additive ? selectedIds : [] };
+    setMarquee(null);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onCanvasMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    const start = marqueeRef.current;
+    if (!start || start.pointerId !== e.pointerId) return;
+    const point = canvasPoint(e);
+    setMarquee({ x: Math.min(start.x, point.x), y: Math.min(start.y, point.y),
+      w: Math.abs(point.x - start.x), h: Math.abs(point.y - start.y) });
+  };
+
+  const onCanvasEnd = (e: React.PointerEvent<SVGSVGElement>) => {
+    const start = marqueeRef.current;
+    if (!start || start.pointerId !== e.pointerId) return;
+    const point = canvasPoint(e);
+    const area = { x: Math.min(start.x, point.x), y: Math.min(start.y, point.y),
+      w: Math.abs(point.x - start.x), h: Math.abs(point.y - start.y) };
+    if (e.type === 'pointerup' && area.w + area.h > 3) {
+      const hits = elements.filter((el) => {
+        const box = getBox(el, label.dpi);
+        const bounds = rotatedAabb(offsetX + d2mm(el.x, label.dpi) * zoom,
+          offsetY + d2mm(el.y, label.dpi) * zoom, d2mm(box.w, label.dpi) * zoom,
+          d2mm(box.h, label.dpi) * zoom, el.rotation ?? 0);
+        return bounds.x <= area.x + area.w && bounds.x + bounds.w >= area.x &&
+          bounds.y <= area.y + area.h && bounds.y + bounds.h >= area.y;
+      }).map((el) => el.id);
+      onSelect([...new Set([...start.initial, ...hits])]);
+    } else if (e.type === 'pointerup') {
+      onSelect(start.initial);
+    }
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    marqueeRef.current = null;
+    setMarquee(null);
+  };
   const [guides, setGuides] = React.useState<Guide[]>([]);
 
   const onPointerDown = (e: React.PointerEvent, el: LabelElement) => {
     if (e.button !== 0) return;
+    e.preventDefault(); // 阻止 SVG 文本在拖拽开始时触发浏览器原生选中
     e.stopPropagation();
     // Cmd/Ctrl + 点击：切换该元素的多选状态；普通点击：单选
     const meta = e.metaKey || e.ctrlKey;
     const next = meta
       ? (selectedIds.includes(el.id) ? selectedIds.filter((id) => id !== el.id) : [...selectedIds, el.id])
-      : [el.id];
-    onSelect(next);
+      : (selectedIds.includes(el.id) ? selectedIds : [el.id]);
+    if (next !== selectedIds) onSelect(next);
     // 拖拽移动「点击后仍处于选中态」的元素组，记录各自初始坐标
     const dragIds = next.includes(el.id) ? next : [];
     const origins = new Map<string, { x: number; y: number }>();
@@ -74,12 +125,17 @@ export default function Canvas({
       if (o) origins.set(id, { x: o.x, y: o.y });
     }
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
-    dragRef.current = { ids: dragIds, origins, px: e.clientX, py: e.clientY };
+    dragRef.current = { ids: dragIds, origins, px: e.clientX, py: e.clientY,
+      clickId: !meta && selectedIds.length > 1 && selectedIds.includes(el.id) ? el.id : null, moved: false };
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
     const d = dragRef.current;
     if (!d || d.ids.length === 0) return;
+    if (d.clickId && !d.moved) {
+      if (Math.hypot(e.clientX - d.px, e.clientY - d.py) <= 3) return;
+      d.moved = true;
+    }
     // 像素位移 → mm → 点(dot)，与元素点存储保持一致
     const dxmm = (e.clientX - d.px) / zoom;
     const dymm = (e.clientY - d.py) / zoom;
@@ -122,8 +178,10 @@ export default function Canvas({
   };
 
   const endDrag = (e: React.PointerEvent) => {
-    if (!dragRef.current) return;
+    const drag = dragRef.current;
+    if (!drag) return;
     try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch {}
+    if (e.type === 'pointerup' && drag.clickId && !drag.moved) onSelect([drag.clickId]);
     onMoveEnd();
     dragRef.current = null;
     setGuides([]);
@@ -164,6 +222,9 @@ export default function Canvas({
         ))}
       </g>
       {guideLines}
+      {marquee && <rect x={marquee.x} y={marquee.y} width={marquee.w} height={marquee.h}
+        fill="rgba(29, 78, 216, 0.12)" stroke="#1d4ed8" strokeWidth={1} strokeDasharray="4 3"
+        pointerEvents="none" />}
     </>
   );
 
@@ -190,8 +251,9 @@ export default function Canvas({
               <div style={{ background: '#eef1f5' }} />
               <Ruler orientation="vertical" lengthMm={label.height} zoom={zoom} thickness={RV} />
               <svg width={W} height={H}
-                style={{ display: 'block', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,.15)' }}
-                onPointerDown={() => onSelect([])}>
+                style={{ display: 'block', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,.15)', touchAction: 'none' }}
+                onPointerDown={onCanvasDown} onPointerMove={onCanvasMove}
+                onPointerUp={onCanvasEnd} onPointerCancel={onCanvasEnd}>
                 {svgBody}
               </svg>
               <Ruler orientation="vertical" lengthMm={label.height} zoom={zoom} thickness={RV} flip />
@@ -201,8 +263,9 @@ export default function Canvas({
             </div>
           ) : (
             <svg width={W} height={H}
-              style={{ display: 'block', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,.15)' }}
-              onPointerDown={() => onSelect([])}>
+              style={{ display: 'block', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,.15)', touchAction: 'none' }}
+              onPointerDown={onCanvasDown} onPointerMove={onCanvasMove}
+              onPointerUp={onCanvasEnd} onPointerCancel={onCanvasEnd}>
               {svgBody}
             </svg>
           )}

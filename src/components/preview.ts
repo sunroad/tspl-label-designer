@@ -23,15 +23,15 @@ export function symbolSvg(el: SymbolElement): string | null {
   try {
     return bwipjs.toSVG({
       bcid, text: el.content, scale: 1,
-      ...(el.type === 'qrcode' ? { eclevel: el.ecc, padding: 4 } : {}),
-      ...(el.type === 'barcode' ? { paddingwidth: 0 } : {}),
+      padding: 0, paddingwidth: 0, paddingheight: 0,
+      ...(el.type === 'qrcode' ? { eclevel: el.ecc } : {}),
     });
   } catch {
     return null;
   }
 }
 
-/** 图片引用保留编码器的 SVG 路径、留白及点阵，不经过画布的形状插值。 */
+/** 图片引用保留编码器的 SVG 路径及点阵，不经过画布的形状插值。 */
 export function symbolImage(el: SymbolElement): string | null {
   const svg = symbolSvg(el);
   return svg ? `data:image/svg+xml,${encodeURIComponent(svg)}` : null;
