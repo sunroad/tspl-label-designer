@@ -77,7 +77,7 @@ export default function VariablePanel({ variables, open, onToggle, onChange }: P
     <div className="section-group" style={{ marginTop: 12 }}>
       <SectionHeader title="变量管理" open={open} onToggle={onToggle} />
       {open && <div className="section-content">
-        <div className="variable-toolbar" style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, marginBottom: 8 }}>
+        <div className="variable-toolbar" style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 8 }}>
           <button type="button" title="添加变量" aria-label="添加变量" style={{ ...iconBtnStyle, flexShrink: 0 }} onClick={add}>
             <Plus size={16} strokeWidth={1.8} />
           </button>
